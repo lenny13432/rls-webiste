@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Team-Panel – Real Life Southland</title>
+<link rel="icon" href="../logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../bewerbung.css">
+</head>
+<body class="is-admin">
+<nav class="top"><div class="wrap">
+  <a class="brand" href="#liste"><img src="../logo.png" alt=""><span>Team-Panel</span></a>
+  <div class="links" id="navLinks" hidden>
+    <a href="#liste" data-nav="liste">Bewerbungen</a><a href="#team" data-nav="team">Team</a><a href="#einstellungen" data-nav="einstellungen" id="navSettings">Einstellungen</a><a href="#konto" data-nav="konto">Mein Konto</a>
+  </div>
+  <div class="nav-out" id="navOut" hidden><span id="whoami"></span><button class="btn btn-ghost sm" id="logout">Abmelden</button></div>
+</div></nav>
+
+<main id="app"><div class="loading">Wird geladen…</div></main>
+
+<footer><div class="wrap"><span>© 2026 Real Life Southland</span><span>Interner Bereich</span></div></footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ============================================================ Grundlagen
+const $ = (id) => document.getElementById(id);
+const app = $('app');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nl = (s) => esc(s).replace(/\n/g, '<br>');
+const fmt = (iso) => { if (!iso) return '–'; const d = new Date(iso); return d.toLocaleDateString('de-DE') + ', ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); };
+const LABEL = { offen: 'Offen', pruefung: 'In Prüfung', angenommen: 'Angenommen', abgelehnt: 'Abgelehnt' };
+const pill = (s) => `<span class="pill st-${s}">${LABEL[s] || esc(s)}</span>`;
+let tt; const toast = (m) => { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => (t.hidden = true), 2600); };
+let me = null;
+const list = { status: 'aktiv', position: '', q: '' };
+let positions = [];
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api/' + path, {
+    method: opts.method || 'GET', credentials: 'same-origin',
+    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  let data = {}; try { data = await r.json(); } catch {}
+  if (r.status === 401 && path !== 'admin/login') { me = null; showLogin(); throw new Error('login'); }
+  if (!r.ok) throw new Error(data.error || (data.errors || []).join(' ') || 'Da ist etwas schiefgelaufen.');
+  return data;
+}
+const alertBox = (type, msg) => `<div class="alert ${type}"><p>${esc(msg)}</p></div>`;
+
+function setNav(view) {
+  const logged = !!me;
+  $('navLinks').hidden = !logged; $('navOut').hidden = !logged;
+  if (logged) { $('whoami').textContent = me.name; $('navSettings').hidden = me.role !== 'owner'; }
+  document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === view));
+}
+
+// ============================================================ Start: Einrichtung oder Login
+async function boot() {
+  try {
+    const setup = await api('setup');
+    if (setup.needed) return showSetup(setup.keySet);
+  } catch (e) { app.innerHTML = `<div class="wrap narrow">${alertBox('bad', e.message)}</div>`; return; }
+  try { me = (await api('admin/me')).me; route(); } catch (e) { if (e.message !== 'login') app.innerHTML = `<div class="wrap narrow">${alertBox('bad', e.message)}</div>`; }
+}
+
+function showSetup(keySet) {
+  setNav('');
+  app.innerHTML = `<div class="wrap narrow"><section class="card pad">
+    <h1 class="h"><span class="script">Einmalig</span>Einrichtung</h1>
+    ${keySet ? '' : alertBox('bad', 'In Cloudflare ist noch kein SETUP_KEY gesetzt. Leg ihn zuerst an (siehe Anleitung) und lade die Seite neu.')}
+    <p class="muted">Leg jetzt dein eigenes Konto an. Es bekommt die Rolle <b>Owner</b> und darf weitere Team-Konten anlegen. Dafür brauchst du den Einrichtungsschlüssel, den du in Cloudflare als <code>SETUP_KEY</code> eingetragen hast.</p>
+    <div id="setupMsg"></div>
+    <form class="form" id="setupForm">
+      <label class="field"><span>Einrichtungsschlüssel</span><input id="su_key" type="password" required autocomplete="off"></label>
+      <label class="field"><span>Benutzername</span><input id="su_name" required minlength="3" maxlength="40" autocomplete="username"></label>
+      <label class="field"><span>Passwort <small>(mindestens 10 Zeichen)</small></span><input id="su_pass" type="password" required minlength="10" autocomplete="new-password"></label>
+      <label class="field"><span>Passwort wiederholen</span><input id="su_pass2" type="password" required minlength="10" autocomplete="new-password"></label>
+      <button class="btn btn-pink" type="submit" style="justify-self:start">Konto anlegen</button>
+    </form></section></div>`;
+  $('setupForm').onsubmit = async (e) => {
+    e.preventDefault();
+    if ($('su_pass').value !== $('su_pass2').value) { $('setupMsg').innerHTML = alertBox('bad', 'Die Passwörter stimmen nicht überein.'); return; }
+    try {
+      await api('setup', { method: 'POST', body: { key: $('su_key').value, name: $('su_name').value.trim(), pass: $('su_pass').value } });
+      toast('Konto angelegt. Melde dich jetzt an.'); showLogin($('su_name').value.trim());
+    } catch (err) { $('setupMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+
+function showLogin(prefill = '') {
+  setNav('');
+  app.innerHTML = `<div class="login"><form class="card form" id="loginForm">
+    <img class="logo" src="../logo.png" alt=""><h1>Team-Panel</h1><div id="loginMsg"></div>
+    <label class="field"><span>Benutzername</span><input id="l_name" required autocomplete="username" value="${esc(prefill)}"></label>
+    <label class="field"><span>Passwort</span><input id="l_pass" type="password" required autocomplete="current-password"></label>
+    <button class="btn btn-pink" type="submit">Anmelden</button></form></div>`;
+  (prefill ? $('l_pass') : $('l_name')).focus();
+  $('loginForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      me = (await api('admin/login', { method: 'POST', body: { name: $('l_name').value.trim(), pass: $('l_pass').value } })).me;
+      if (!location.hash) location.hash = '#liste'; route();
+    } catch (err) { $('loginMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+$('logout').onclick = async () => { try { await api('admin/logout', { method: 'POST', body: {} }); } catch {} me = null; showLogin(); };
+
+// ============================================================ Navigation per #hash
+function route() {
+  if (!me) return showLogin();
+  const h = location.hash.replace('#', '') || 'liste';
+  const m = h.match(/^bewerbung-(\d+)$/);
+  if (m) return showDetail(+m[1]);
+  if (h === 'team') return showTeam();
+  if (h === 'einstellungen' && me.role === 'owner') return showSettings();
+  if (h === 'konto') return showAccount();
+  return showList();
+}
+addEventListener('hashchange', route);
+
+// ============================================================ Bewerbungen: Übersicht
+async function showList() {
+  setNav('liste');
+  if (!positions.length) { try { positions = (await api('config')).positions; } catch {} }
+  const qs = new URLSearchParams({ status: list.status, position: list.position, q: list.q });
+  let data;
+  try { data = await api('admin/applications?' + qs); } catch (e) { if (e.message !== 'login') app.innerHTML = `<div class="wrap admin-main">${alertBox('bad', e.message)}</div>`; return; }
+  const c = data.counts;
+  const head = document.querySelector('#v-list');
+  if (!head) {
+    app.innerHTML = `<div class="wrap admin-main" id="v-list">
+      <div class="admin-head"><h1><span class="script">Hey ${esc(me.name)}</span>Team-Bewerbungen</h1></div>
+      <div class="stats" id="stats"></div>
+      <div class="toolbar">
+        <input id="search" type="search" placeholder="Suchen nach Discord, Bereich, Code oder ID" value="${esc(list.q)}">
+        <select id="posFilter" class="pos-filter"><option value="">Alle Bereiche</option>${positions.map((p) => `<option${p.name === list.position ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+        <button class="btn btn-ghost sm" data-f="aktiv">Zu bearbeiten</button><button class="btn btn-ghost sm" data-f="alle">Alle</button>
+      </div>
+      <div class="table-wrap" id="tableWrap"></div></div>`;
+    let deb; $('search').oninput = () => { clearTimeout(deb); deb = setTimeout(() => { list.q = $('search').value.trim(); showList(); }, 250); };
+    $('posFilter').onchange = () => { list.position = $('posFilter').value; showList(); };
+    app.querySelector('.toolbar').addEventListener('click', (e) => { const b = e.target.closest('[data-f]'); if (b) { list.status = b.dataset.f; showList(); } });
+  }
+  $('stats').innerHTML = ['offen', 'pruefung', 'angenommen', 'abgelehnt'].map((k) =>
+    `<button class="stat${list.status === k ? ' on' : ''}" data-s="${k}"><b>${c[k]}</b><span class="st-${k}" style="background:none">${LABEL[k]}</span></button>`).join('');
+  $('stats').onclick = (e) => { const b = e.target.closest('[data-s]'); if (b) { list.status = b.dataset.s; showList(); } };
+  app.querySelectorAll('[data-f]').forEach((b) => (b.style.borderColor = b.dataset.f === list.status ? 'var(--pink)' : ''));
+  const rows = data.rows;
+  $('tableWrap').innerHTML = !rows.length
+    ? `<div class="empty">${list.status === 'aktiv' && !list.q && !list.position ? 'Alles erledigt. Gerade wartet keine Bewerbung auf euch.' : 'Keine Bewerbungen gefunden.'}</div>`
+    : `<table><thead><tr><th>#</th><th>Discord</th><th>Bereich</th><th>Alter</th><th>Zeit / Woche</th><th>Status</th><th>Eingegangen</th><th>Bearbeitet von</th></tr></thead><tbody>
+      ${rows.map((a) => `<tr data-id="${a.id}"><td class="num">${a.id}</td><td><a href="#bewerbung-${a.id}">${esc(a.discord_name)}</a></td><td>${esc(a.position)}</td><td class="num">${a.age}</td><td class="num">${esc(a.hours)}</td><td>${pill(a.status)}</td><td class="num">${fmt(a.created_at)}</td><td class="num">${esc(a.decided_by_name || '–')}</td></tr>`).join('')}</tbody></table>`;
+  $('tableWrap').onclick = (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) location.hash = '#bewerbung-' + tr.dataset.id; };
+}
+
+// ============================================================ Bewerbung: Detail
+async function showDetail(id, flash) {
+  setNav('liste');
+  let d;
+  try { d = await api('admin/applications/' + id); } catch (e) { if (e.message !== 'login') app.innerHTML = `<div class="wrap admin-main"><a class="back" href="#liste">← Zurück zur Übersicht</a>${alertBox('bad', e.message)}</div>`; return; }
+  const a = d.app;
+  const btn = (s, cls, label) => `<button class="btn ${cls}" data-set="${s}" ${a.status === s ? 'disabled' : ''}>${label}</button>`;
+  app.innerHTML = `<div class="wrap admin-main">
+    <a class="back" href="#liste">← Zurück zur Übersicht</a>
+    <div class="admin-head"><h1><span class="script">Bewerbung #${a.id} · ${esc(a.position)}</span>${esc(a.discord_name)}</h1>${pill(a.status)}</div>
+    ${flash ? alertBox('ok', flash) : ''}<div id="dMsg"></div>
+    <div class="detail"><section>
+      <div class="facts">
+        <div><span>Discord</span><b>${esc(a.discord_name)}</b></div><div><span>Discord-ID</span><b>${esc(a.discord_id || '–')}</b></div><div><span>Alter</span><b>${a.age} Jahre</b></div>
+        <div><span>Bereich</span><b>${esc(a.position)}</b></div><div><span>Zeit pro Woche</span><b>${esc(a.hours)}</b></div><div><span>Eingegangen</span><b>${fmt(a.created_at)}</b></div>
+      </div>
+      ${d.previous.length ? `<div class="alert info"><p><b>Frühere Bewerbungen dieses Discord-Namens:</b> ${d.previous.map((p) => `<a style="color:var(--pink)" href="#bewerbung-${p.id}">#${p.id}</a> (${LABEL[p.status]})`).join(', ')}</p></div>` : ''}
+      <div class="answer"><h3>Wann meistens da</h3><div>${nl(a.times)}</div></div>
+      <div class="answer"><h3>Team-Erfahrung</h3><div>${nl(a.experience)}</div></div>
+      <div class="answer"><h3>Warum wir ihn/sie nehmen sollten <small>· ${[...a.motivation].length} Zeichen</small></h3><div>${nl(a.motivation)}</div></div>
+      <div class="answer"><h3>Praxisfrage: RDM-Meldung im Support</h3><div>${nl(a.scenario1)}</div></div>
+      <div class="answer"><h3>Praxisfrage: Teammitglied ist respektlos</h3><div>${nl(a.scenario2)}</div></div>
+      <div class="answer"><h3>Verlauf &amp; Team-Notizen <small>· nur für das Team sichtbar</small></h3></div>
+      <form class="form" id="noteForm" style="gap:10px;margin-bottom:14px">
+        <label class="field"><textarea id="noteBody" placeholder="Interne Notiz, z. B. „Starke Praxisantworten, im Gespräch nach Erfahrung mit txAdmin fragen“" style="min-height:90px"></textarea></label>
+        <button class="btn btn-ghost sm" type="submit" style="justify-self:start">Notiz speichern</button>
+      </form>
+      <div class="timeline">${d.notes.length ? d.notes.map((n) => `<div class="note${n.kind === 'system' ? ' sys' : ''}"><header><b>${esc(n.admin_name || 'Gelöschtes Konto')}</b><span>${fmt(n.created_at)}</span></header>${nl(n.body)}</div>`).join('') : '<p class="muted" style="margin:0">Noch keine Notizen.</p>'}</div>
+    </section>
+    <aside class="card decide">
+      <h3>Entscheidung</h3>
+      ${a.decided_at ? `<p class="muted" style="margin:0;font-size:14px">${LABEL[a.status]} von <b style="color:var(--fg)">${esc(a.decided_by_name || '–')}</b> am ${fmt(a.decided_at)}</p>` : ''}
+      <label class="field"><span>Nachricht an den Bewerber <small>(optional, sieht er auf der Statusseite)</small></span>
+        <textarea id="pubNote" style="min-height:110px" placeholder="z. B. „Wir melden uns im Discord für dein Gespräch.“">${esc(a.public_note || '')}</textarea></label>
+      <div class="row">${btn('angenommen', 'btn-ok', 'Annehmen')}${btn('abgelehnt', 'btn-bad', 'Ablehnen')}</div>
+      ${a.status === 'offen' ? '<button class="btn btn-warn" data-set="pruefung">Als „In Prüfung“ markieren</button>' : a.status !== 'pruefung' ? '<button class="btn btn-ghost sm" data-set="pruefung">Wieder öffnen</button>' : ''}
+      <p class="muted" style="margin:0;font-size:13px">Bewerbungscode: <code>${esc(a.code)}</code></p>
+      ${me.role === 'owner' ? `<details style="border-top:1px solid var(--line);padding-top:12px"><summary style="cursor:pointer;color:var(--muted);font-size:14px">Bewerbung löschen</summary>
+        <div class="form" style="gap:10px;margin-top:10px"><label class="field"><span style="font-size:13px">Zum Bestätigen <b>LÖSCHEN</b> eingeben</span><input id="delConfirm" autocomplete="off"></label>
+        <button class="btn btn-bad sm" id="delBtn">Endgültig löschen</button></div></details>` : ''}
+    </aside></div></div>`;
+  scrollTo(0, 0);
+  $('noteForm').onsubmit = async (e) => {
+    e.preventDefault(); const body = $('noteBody').value.trim(); if (!body) return;
+    try { await api(`admin/applications/${id}/notes`, { method: 'POST', body: { body } }); showDetail(id, 'Notiz gespeichert.'); } catch (err) { $('dMsg').innerHTML = alertBox('bad', err.message); }
+  };
+  app.querySelectorAll('[data-set]').forEach((b) => (b.onclick = async () => {
+    const s = b.dataset.set;
+    try {
+      await api(`admin/applications/${id}/status`, { method: 'POST', body: { status: s, public_note: $('pubNote').value.trim() } });
+      showDetail(id, `Status auf „${LABEL[s]}“ gesetzt.`);
+    } catch (err) { $('dMsg').innerHTML = alertBox('bad', err.message); }
+  }));
+  if ($('delBtn')) $('delBtn').onclick = async () => {
+    if ($('delConfirm').value !== 'LÖSCHEN') { $('dMsg').innerHTML = alertBox('bad', 'Zum Löschen bitte LÖSCHEN in das Feld schreiben.'); return; }
+    try { await api('admin/applications/' + id, { method: 'DELETE' }); toast(`Bewerbung #${id} wurde gelöscht.`); location.hash = '#liste'; } catch (err) { $('dMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+
+// ============================================================ Team
+async function showTeam(newPass) {
+  setNav('team');
+  let team;
+  try { team = (await api('admin/team')).team; } catch (e) { if (e.message !== 'login') app.innerHTML = `<div class="wrap admin-main">${alertBox('bad', e.message)}</div>`; return; }
+  const owner = me.role === 'owner';
+  app.innerHTML = `<div class="wrap admin-main">
+    <div class="admin-head"><h1><span class="script">Wer darf rein?</span>Team-Konten</h1></div><div id="tMsg"></div>
+    ${newPass ? `<div class="alert info"><p><b>Zugangsdaten für ${esc(newPass.name)}</b>, gib sie per Privatnachricht weiter. Das Passwort wird nur jetzt angezeigt.</p><div class="code-box" style="margin:10px 0 4px"><code style="font-size:22px">${esc(newPass.password)}</code></div><p class="muted">Nach dem ersten Anmelden unter „Mein Konto“ ein eigenes Passwort setzen.</p></div>` : ''}
+    <div class="table-wrap" style="margin-bottom:24px"><table><thead><tr><th>Name</th><th>Rolle</th><th>Status</th><th>Zuletzt angemeldet</th>${owner ? '<th></th>' : ''}</tr></thead><tbody>
+    ${team.map((t) => `<tr style="cursor:default"><td><b>${esc(t.name)}</b>${t.id === me.id ? ' <span class="muted">(du)</span>' : ''}</td>
+      <td><span class="pill ${t.role === 'owner' ? 'st-offen' : 'st-pruefung'}">${t.role === 'owner' ? 'Owner' : 'Admin'}</span></td>
+      <td><span class="pill ${t.active ? 'st-angenommen' : 'st-abgelehnt'}">${t.active ? 'Aktiv' : 'Gesperrt'}</span></td>
+      <td class="num">${fmt(t.last_login)}</td>
+      ${owner ? `<td>${t.id === me.id ? '' : `<div style="display:flex;gap:6px">
+        <button class="btn btn-ghost sm" data-act="toggle" data-id="${t.id}">${t.active ? 'Sperren' : 'Entsperren'}</button>
+        <button class="btn btn-ghost sm" data-act="reset" data-id="${t.id}">Neues Passwort</button>
+        <button class="btn btn-ghost sm" data-act="role" data-role="${t.role === 'owner' ? 'admin' : 'owner'}" data-id="${t.id}">${t.role === 'owner' ? 'Zu Admin' : 'Zu Owner'}</button></div>`}</td>` : ''}</tr>`).join('')}
+    </tbody></table></div>
+    ${owner ? `<section class="card pad" style="max-width:560px"><h2 style="font-size:24px;margin-bottom:6px">Neues Team-Konto</h2>
+      <p class="muted" style="margin-top:0">Ein sicheres Passwort wird automatisch erstellt. <b>Admins</b> bearbeiten Bewerbungen, <b>Owner</b> verwalten zusätzlich das Team, die Einstellungen und dürfen löschen.</p>
+      <form class="form" id="teamForm" style="gap:14px"><div class="grid2">
+        <label class="field"><span>Benutzername</span><input id="t_name" maxlength="40" placeholder="z. B. Likma"></label>
+        <label class="field"><span>Rolle</span><select id="t_role"><option value="admin">Admin</option><option value="owner">Owner</option></select></label></div>
+        <button class="btn btn-pink" type="submit" style="justify-self:start">Konto anlegen</button></form></section>` : '<p class="muted">Neue Konten legt der Projektinhaber an.</p>'}
+  </div>`;
+  if (!owner) return;
+  app.querySelectorAll('[data-act]').forEach((b) => (b.onclick = async () => {
+    try {
+      const r = await api('admin/team/' + b.dataset.id, { method: 'POST', body: { action: b.dataset.act, role: b.dataset.role } });
+      showTeam(r.password ? r : null);
+    } catch (err) { $('tMsg').innerHTML = alertBox('bad', err.message); }
+  }));
+  $('teamForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try { showTeam(await api('admin/team', { method: 'POST', body: { name: $('t_name').value.trim(), role: $('t_role').value } })); }
+    catch (err) { $('tMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+
+// ============================================================ Einstellungen (nur Owner)
+async function showSettings() {
+  setNav('einstellungen');
+  let cfg; try { cfg = await api('config'); } catch (e) { app.innerHTML = `<div class="wrap admin-main">${alertBox('bad', e.message)}</div>`; return; }
+  const states = [['offen', 'Offen'], ['wenige', 'Wenige Plätze'], ['voll', 'Voll'], ['geschlossen', 'Geschlossen']];
+  const row = (p = { name: '', state: 'offen' }) => `<div class="set-row"><input class="sp-name" value="${esc(p.name)}" maxlength="40" placeholder="Bereich, z. B. Supporter">
+    <select class="sp-state">${states.map(([v, l]) => `<option value="${v}"${p.state === v ? ' selected' : ''}>${l}</option>`).join('')}</select>
+    <button type="button" class="icon-btn" title="Entfernen" aria-label="Bereich entfernen">×</button></div>`;
+  app.innerHTML = `<div class="wrap narrow"><section class="card pad">
+    <h1 class="h"><span class="script">Was suchen wir?</span>Einstellungen</h1><div id="sMsg"></div>
+    <form class="form" id="setForm">
+      <label class="switch"><input type="checkbox" id="s_open" ${cfg.open ? 'checked' : ''}> Bewerbungen sind geöffnet</label>
+      <p class="muted" style="margin:-10px 0 0;font-size:14px">Ist der Haken weg, sehen Besucher „Die Bewerbungsphase ist gerade pausiert“.</p>
+      <div class="field"><span>Bereiche</span><p class="muted" style="margin:0;font-size:14px">Bei „Voll“ und „Geschlossen“ kann man den Bereich im Formular nicht auswählen.</p></div>
+      <div id="rows" style="display:grid;gap:8px">${cfg.positions.map(row).join('')}</div>
+      <button type="button" class="btn btn-ghost sm" id="addRow" style="justify-self:start">+ Bereich hinzufügen</button>
+      <button class="btn btn-pink" type="submit" style="justify-self:start">Speichern</button>
+    </form></section></div>`;
+  const bindRemove = () => app.querySelectorAll('.icon-btn').forEach((b) => (b.onclick = () => b.closest('.set-row').remove()));
+  bindRemove();
+  $('addRow').onclick = () => { $('rows').insertAdjacentHTML('beforeend', row()); bindRemove(); $('rows').lastElementChild.querySelector('input').focus(); };
+  $('setForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const pos = [...app.querySelectorAll('.set-row')].map((r) => ({ name: r.querySelector('.sp-name').value.trim(), state: r.querySelector('.sp-state').value })).filter((p) => p.name);
+    try { await api('admin/settings', { method: 'PUT', body: { open: $('s_open').checked, positions: pos } }); positions = pos; $('sMsg').innerHTML = alertBox('ok', 'Gespeichert. Das Formular zeigt die Änderung sofort.'); }
+    catch (err) { $('sMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+
+// ============================================================ Mein Konto
+function showAccount() {
+  setNav('konto');
+  app.innerHTML = `<div class="wrap narrow"><section class="card pad">
+    <h1 class="h"><span class="script">${esc(me.name)}</span>Mein Konto</h1>
+    <p class="muted">Rolle: <b style="color:var(--fg)">${me.role === 'owner' ? 'Owner' : 'Admin'}</b></p><div id="kMsg"></div>
+    <form class="form" id="pwForm">
+      <label class="field"><span>Aktuelles Passwort</span><input id="pw_old" type="password" required autocomplete="current-password"></label>
+      <label class="field"><span>Neues Passwort <small>(mindestens 10 Zeichen)</small></span><input id="pw_new" type="password" required minlength="10" autocomplete="new-password"></label>
+      <label class="field"><span>Neues Passwort wiederholen</span><input id="pw_new2" type="password" required minlength="10" autocomplete="new-password"></label>
+      <button class="btn btn-pink" type="submit" style="justify-self:start">Passwort ändern</button>
+    </form></section></div>`;
+  $('pwForm').onsubmit = async (e) => {
+    e.preventDefault();
+    if ($('pw_new').value !== $('pw_new2').value) { $('kMsg').innerHTML = alertBox('bad', 'Die neuen Passwörter stimmen nicht überein.'); return; }
+    try { await api('admin/password', { method: 'POST', body: { old: $('pw_old').value, new: $('pw_new').value } }); $('kMsg').innerHTML = alertBox('ok', 'Passwort geändert. Andere angemeldete Geräte wurden abgemeldet.'); $('pwForm').reset(); }
+    catch (err) { $('kMsg').innerHTML = alertBox('bad', err.message); }
+  };
+}
+
+boot();
+</script>
+</body>
+</html>

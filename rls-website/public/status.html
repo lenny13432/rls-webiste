@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bewerbungsstatus – Real Life Southland</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="bewerbung.css">
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <a class="brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html" class="on">Team-Bewerbung</a></div>
+  <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+</div></nav>
+
+<main class="wrap narrow">
+  <section class="card pad">
+    <h1 class="h"><span class="script">Wie sieht's aus?</span>Status prüfen</h1>
+    <form class="form" id="statusForm" style="margin-bottom:24px">
+      <label class="field"><span>Dein Bewerbungscode</span><input id="s_code" maxlength="9" placeholder="XXXX-XXXX" style="font:600 20px var(--mono);letter-spacing:.12em;text-transform:uppercase" autocomplete="off"></label>
+      <button class="btn btn-pink" type="submit" style="justify-self:start">Status anzeigen</button>
+    </form>
+    <div id="out"><p class="muted">Den Code hast du nach dem Absenden deiner Bewerbung bekommen. Noch keine Bewerbung? <a href="bewerbung.html" style="color:var(--pink)">Jetzt bewerben</a></p></div>
+  </section>
+</main>
+
+<footer><div class="wrap"><span>© 2026 Real Life Southland</span><span>Nicht mit Rockstar Games oder Cfx.re verbunden.</span></div></footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = (iso) => { const d = new Date(iso); return d.toLocaleDateString('de-DE') + ', ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); };
+const LABEL = { offen: 'Offen', pruefung: 'In Prüfung', angenommen: 'Angenommen', abgelehnt: 'Abgelehnt' };
+
+async function check() {
+  const code = $('s_code').value.trim();
+  if (!code) return;
+  history.replaceState(null, '', '?code=' + encodeURIComponent(code));
+  $('out').innerHTML = '<p class="muted">Wird geladen…</p>';
+  try {
+    const r = await fetch('/api/status?code=' + encodeURIComponent(code));
+    const a = await r.json();
+    if (!r.ok) { $('out').innerHTML = `<div class="alert bad"><p>${esc(a.error)}</p></div>`; return; }
+    $('s_code').value = a.code;
+    const INFO = {
+      offen: ['…', 'Eingegangen', 'Deine Bewerbung ist bei uns angekommen und wartet darauf, dass jemand aus der Projektleitung sie liest.'],
+      pruefung: ['⌕', 'In Prüfung', 'Die Projektleitung schaut sich deine Bewerbung gerade genauer an.'],
+      angenommen: ['✓', 'Angenommen!', 'Glückwunsch! Wir melden uns im Discord bei dir für das Gespräch und den Start deiner Testphase.'],
+      abgelehnt: ['✕', 'Abgelehnt', `Diesmal hat es leider nicht gepasst. Du kannst dich nach ${a.cooldownDays} Tagen erneut bewerben.`]
+    };
+    const [ic, title, text] = INFO[a.status];
+    $('out').innerHTML = `<div class="status-big"><div class="ic st-${a.status}">${ic}</div><span class="pill st-${a.status}">${LABEL[a.status]}</span><h2>${title}</h2>
+      <p class="muted">Bewerbung als <b style="color:var(--fg)">${esc(a.position)}</b> vom ${fmt(a.created_at)}</p><p>${text}</p></div>
+      ${a.public_note ? `<div class="alert info"><p><b>Nachricht vom Team:</b></p><p>${esc(a.public_note).replace(/\n/g, '<br>')}</p></div>` : ''}
+      ${a.status === 'angenommen' ? '<a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Zum Discord</a>' : a.status === 'abgelehnt' ? '<a class="btn btn-ghost" href="bewerbung.html">Neue Bewerbung</a>' : ''}`;
+  } catch { $('out').innerHTML = '<div class="alert bad"><p>Keine Verbindung zum Server. Versuch es gleich nochmal.</p></div>'; }
+}
+$('statusForm').onsubmit = (e) => { e.preventDefault(); check(); };
+const pre = new URLSearchParams(location.search).get('code');
+if (pre) { $('s_code').value = pre; check(); }
+</script>
+</body>
+</html>
