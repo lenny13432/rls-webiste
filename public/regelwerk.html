@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Regelwerk – Real Life Southland</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: Regelwerk als Nachschlagewerk – Banner-Kopf, klebendes Inhaltsverzeichnis links, Paragraphen rechts, Suche oben */
+:root{
+  --night:#120b26; --night-2:#1b1238; --line:#34265c; --fg:#f6f1ff; --muted:#b5a8d8;
+  --pink:#ff4fb3; --violet:#5b34e0; --sunset:#ff7a45;
+  --heavy:"Rubik", "Arial Black", Impact, sans-serif;
+  --script:"Yellowtail", "Brush Script MT", cursive;
+  --body:"Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:var(--night);color:var(--fg);font:400 17px/1.65 var(--body);margin:0}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
+h1,h2,h3{font-family:var(--heavy);text-wrap:balance;margin:0;line-height:1;text-transform:uppercase}
+.script{font-family:var(--script);text-transform:none;color:var(--pink);font-weight:400}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--night)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--night) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand img{width:46px;height:46px}
+.brand span{font:900 15px/1 var(--heavy);letter-spacing:.06em;text-transform:uppercase}
+@media (max-width:600px){.brand span{display:none}.navr .btn-ghost{display:none}}
+.navr{display:flex;gap:10px;align-items:center}
+.btn{font:700 15px var(--body);border:0;border-radius:999px;padding:11px 20px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:8px;transition:transform .15s}
+.btn:hover{transform:translateY(-2px)}
+.btn-pink{background:linear-gradient(90deg,var(--pink),var(--sunset));color:#1a0616;box-shadow:0 8px 30px #ff4fb355}
+.btn-ghost{background:#ffffff0d;color:var(--fg);border:1px solid var(--line)}
+
+header{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+header .bg{position:absolute;inset:0;background:url(banner.jpg) center 40%/cover;opacity:.35;animation:drift 30s ease-in-out infinite alternate}
+@keyframes drift{to{transform:scale(1.1)}}
+header::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--night) 20%,#120b2699 60%,#120b2655),linear-gradient(to top,var(--night),transparent 60%)}
+header .wrap{position:relative;z-index:1;padding-block:64px 48px}
+header h1{font-size:clamp(52px,9vw,104px);font-weight:900}
+header h1 .script{display:block;font-size:.55em;margin-bottom:6px;text-shadow:0 0 30px #ff4fb388}
+header p{color:var(--muted);max-width:56ch;margin:16px 0 0}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.pill{font:600 12px var(--body);letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;border-radius:99px;background:#ffffff0d;border:1px solid var(--line);color:var(--muted)}
+.pill b{color:var(--pink);font-weight:700}
+
+.layout{display:grid;grid-template-columns:260px 1fr;gap:48px;padding-block:48px 90px}
+@media (max-width:860px){.layout{grid-template-columns:1fr;gap:24px}}
+aside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 86px);align-self:start;display:grid;gap:16px;min-width:0}
+@media (max-width:860px){aside{position:static}}
+.search{display:flex;align-items:center;gap:8px;background:var(--night-2);border:1px solid var(--line);border-radius:12px;padding:0 14px}
+.search:focus-within{border-color:var(--pink)}
+.search input{flex:1;min-width:0;background:none;border:0;color:var(--fg);font:500 15px var(--body);padding:12px 0;outline:none}
+.search svg{flex:none;color:var(--muted)}
+.toc{display:grid;gap:2px;list-style:none;margin:0;padding:0}
+@media (max-width:860px){.toc{display:flex;flex-wrap:wrap;gap:6px}}
+.toc a{display:flex;gap:10px;text-decoration:none;padding:8px 12px;border-radius:8px;color:var(--muted);font-weight:600;font-size:15px;border-left:2px solid transparent}
+.toc a span{font:500 12px var(--mono);color:var(--line);padding-top:2px}
+.toc a:hover{color:var(--fg);background:#ffffff08}
+.toc a.on{color:var(--fg);border-left-color:var(--pink);background:#ff4fb312}
+.toc a.on span{color:var(--pink)}
+@media (max-width:860px){.toc a{border:1px solid var(--line);border-radius:99px;padding:6px 12px}.toc a.on{border-color:var(--pink)}}
+
+.chapter{scroll-margin-top:96px;padding-bottom:40px}
+.chapter + .chapter{padding-top:40px;border-top:1px solid var(--line)}
+.chapter h2{font-size:clamp(30px,4vw,42px);font-weight:900;display:flex;gap:16px;align-items:baseline;margin-bottom:22px}
+.chapter h2 .n{font:900 .7em var(--heavy);background:linear-gradient(135deg,var(--violet),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.rule{display:grid;grid-template-columns:64px 1fr;gap:16px;padding:16px 18px;border-radius:12px;scroll-margin-top:96px;transition:background .2s}
+.rule:hover{background:#ffffff06}
+.rule:target{background:#ff4fb314;box-shadow:inset 3px 0 0 var(--pink)}
+.rule .p{font:500 14px var(--mono);color:var(--pink);text-decoration:none;padding-top:3px}
+.rule h3{font:800 19px/1.3 var(--heavy);text-transform:none;margin-bottom:4px}
+.rule p{margin:0;color:var(--muted);max-width:68ch}
+.rule p + p{margin-top:8px}
+mark{background:#ff4fb355;color:var(--fg);border-radius:3px;padding:0 2px}
+.empty{padding:40px 0;color:var(--muted)}
+
+.strafen{width:100%;border-collapse:collapse;margin-top:8px;font-size:15px}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:12px;margin:8px 18px 0 98px}
+@media (max-width:600px){.tbl{margin-left:0}.rule{grid-template-columns:1fr;gap:4px}}
+.strafen th,.strafen td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+.strafen th{font:600 12px var(--body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);background:var(--night-2)}
+.strafen tr:last-child td{border-bottom:0}
+.lv{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+
+footer{border-top:1px solid var(--line)}
+footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;color:var(--muted);font-size:14px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <a class="brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="navr">
+    <a class="btn btn-ghost" href="./">Zur Startseite</a>
+    <a class="btn btn-ghost" href="launcher.html">Launcher</a>
+    <a class="btn btn-ghost" href="fraktion.html">Fraktion gründen</a>
+    <a class="btn btn-ghost" href="bewerbung.html">Team-Bewerbung</a>
+    <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  </div>
+</div></nav>
+
+<header><div class="bg"></div><div class="wrap">
+  <h1><span class="script">Southland III</span>Regelwerk</h1>
+  <p>Mit dem Betreten des Servers akzeptierst du dieses Regelwerk. Unwissenheit schützt nicht vor Strafe. Im Zweifel entscheidet das Team.</p>
+  <div class="meta"><span class="pill">Stand <b>17.10.2026</b></span><span class="pill">7 Kapitel</span><span class="pill">Gilt für alle Spieler</span></div>
+</div></header>
+
+<div class="wrap layout">
+  <aside>
+    <label class="search" for="q">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Regel suchen, z. B. RDM" autocomplete="off">
+    </label>
+    <ul class="toc" id="toc">
+      <li><a href="#k1"><span>01</span>Allgemeines</a></li>
+      <li><a href="#k2"><span>02</span>Roleplay</a></li>
+      <li><a href="#k3"><span>03</span>Kommunikation</a></li>
+      <li><a href="#k4"><span>04</span>Fahrzeuge</a></li>
+      <li><a href="#k5"><span>05</span>Kriminalität</a></li>
+      <li><a href="#k6"><span>06</span>Fraktionen</a></li>
+      <li><a href="#k7"><span>07</span>Support &amp; Strafen</a></li>
+    </ul>
+  </aside>
+
+  <main id="rules">
+    <section class="chapter" id="k1"><h2><span class="n">01</span>Allgemeines</h2>
+      <div class="rule" id="r1-1"><a class="p" href="#r1-1">§ 1.1</a><div><h3>Geltungsbereich</h3><p>Das Regelwerk gilt auf dem Gameserver, im Discord und in allen offiziellen Kanälen von Real Life Southland.</p></div></div>
+      <div class="rule" id="r1-2"><a class="p" href="#r1-2">§ 1.2</a><div><h3>Respekt</h3><p>Beleidigungen, Rassismus, Sexismus und Diskriminierung außerhalb des Roleplays werden nicht geduldet. Das gilt auch gegenüber dem Team.</p></div></div>
+      <div class="rule" id="r1-3"><a class="p" href="#r1-3">§ 1.3</a><div><h3>Cheats und Bugusing</h3><p>Mod-Menüs, Cheats, Makros und das Ausnutzen von Bugs führen zum permanenten Bann. Gefundene Bugs werden im Discord gemeldet.</p></div></div>
+      <div class="rule" id="r1-4"><a class="p" href="#r1-4">§ 1.4</a><div><h3>Mehrfachaccounts</h3><p>Jeder Spieler darf nur einen Account nutzen. Bann-Umgehung führt zum Ausschluss aller beteiligten Accounts.</p></div></div>
+      <div class="rule" id="r1-5"><a class="p" href="#r1-5">§ 1.5</a><div><h3>Teamentscheidungen</h3><p>Anweisungen von Teammitgliedern sind zu befolgen. Diskussionen über Entscheidungen finden per Ticket statt, nicht im Spiel.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k2"><h2><span class="n">02</span>Roleplay</h2>
+      <div class="rule" id="r2-1"><a class="p" href="#r2-1">§ 2.1</a><div><h3>Fear RP</h3><p>Dein Charakter hängt an seinem Leben. Wer mit einer Waffe bedroht wird oder in Unterzahl ist, verhält sich entsprechend ängstlich und kooperativ.</p></div></div>
+      <div class="rule" id="r2-2"><a class="p" href="#r2-2">§ 2.2</a><div><h3>Realistisches Verhalten</h3><p>Handle so, wie es eine echte Person in der Situation tun würde. Unrealistische Stunts, Sprünge und Verhalten sind zu unterlassen.</p></div></div>
+      <div class="rule" id="r2-3"><a class="p" href="#r2-3">§ 2.3</a><div><h3>RDM und VDM</h3><p>Random Deathmatch (Angriff ohne RP-Grund) und Vehicle Deathmatch (Überfahren als Waffe) sind verboten. Jeder Gewalt muss eine nachvollziehbare Interaktion vorausgehen.</p></div></div>
+      <div class="rule" id="r2-4"><a class="p" href="#r2-4">§ 2.4</a><div><h3>Metagaming</h3><p>Informationen aus Discord, Streams, Calls oder anderen OOC-Quellen dürfen im Spiel nicht verwendet werden.</p></div></div>
+      <div class="rule" id="r2-5"><a class="p" href="#r2-5">§ 2.5</a><div><h3>Powergaming</h3><p>Es ist verboten, anderen Spielern Handlungen aufzuzwingen oder Aktionen auszuführen, auf die sie nicht reagieren können.</p></div></div>
+      <div class="rule" id="r2-6"><a class="p" href="#r2-6">§ 2.6</a><div><h3>New Life Rule</h3><p>Nach einem Respawn vergisst dein Charakter die Umstände seines Todes. Du kehrst mindestens 30 Minuten nicht an den Ort zurück und rächst dich nicht.</p></div></div>
+      <div class="rule" id="r2-7"><a class="p" href="#r2-7">§ 2.7</a><div><h3>Combat Logging</h3><p>Das Verlassen des Servers während einer laufenden RP-Situation ist verboten. Bei Absturz meldest du dich sofort im Support.</p></div></div>
+      <div class="rule" id="r2-8"><a class="p" href="#r2-8">§ 2.8</a><div><h3>Charakter und Name</h3><p>Charakternamen müssen realistisch sein. Promi-Namen, Beleidigungen und Fantasienamen sind nicht erlaubt.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k3"><h2><span class="n">03</span>Kommunikation</h2>
+      <div class="rule" id="r3-1"><a class="p" href="#r3-1">§ 3.1</a><div><h3>Mikrofon-Pflicht</h3><p>Ein funktionierendes Mikrofon ist Pflicht. Roleplay findet im Voice statt, nicht im Chat.</p></div></div>
+      <div class="rule" id="r3-2"><a class="p" href="#r3-2">§ 3.2</a><div><h3>OOC im Spiel</h3><p>Out-of-Character-Gespräche im Spiel sind auf ein Minimum zu beschränken und nur im Notfall erlaubt.</p></div></div>
+      <div class="rule" id="r3-3"><a class="p" href="#r3-3">§ 3.3</a><div><h3>Soundboards und Musik</h3><p>Soundboards, Stimmverzerrer und das Abspielen von Musik über das Mikrofon sind verboten.</p></div></div>
+      <div class="rule" id="r3-4"><a class="p" href="#r3-4">§ 3.4</a><div><h3>Funk</h3><p>Funkgeräte dürfen nur genutzt werden, wenn der Charakter eines besitzt. Abgehörter Funk ist nur mit RP-Grund erlaubt.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k4"><h2><span class="n">04</span>Fahrzeuge</h2>
+      <div class="rule" id="r4-1"><a class="p" href="#r4-1">§ 4.1</a><div><h3>Realistisches Fahren</h3><p>Fahrzeuge werden realistisch bewegt. Supersportwagen gehören nicht ins Gelände, Stunts und Sprünge sind ohne RP-Grund verboten.</p></div></div>
+      <div class="rule" id="r4-2"><a class="p" href="#r4-2">§ 4.2</a><div><h3>Unfälle</h3><p>Nach einem schweren Unfall wird der Schaden ausgespielt. Einfach weiterfahren ist nicht erlaubt.</p></div></div>
+      <div class="rule" id="r4-3"><a class="p" href="#r4-3">§ 4.3</a><div><h3>Fahrzeugdiebstahl</h3><p>Fremde Fahrzeuge dürfen nur mit RP-Grund gestohlen werden. Fahrzeuge von Polizei und EMS sind tabu.</p></div></div>
+      <div class="rule" id="r4-4"><a class="p" href="#r4-4">§ 4.4</a><div><h3>Parken</h3><p>Fahrzeuge werden ordnungsgemäß geparkt. Wer Ein- und Ausfahrten blockiert, wird abgeschleppt.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k5"><h2><span class="n">05</span>Kriminalität</h2>
+      <div class="rule" id="r5-1"><a class="p" href="#r5-1">§ 5.1</a><div><h3>Safe Zones</h3><p>Krankenhaus, Polizeiwache, Jobcenter und Einreise sind Safe Zones. Dort sind Überfälle, Entführungen und Schießereien verboten.</p></div></div>
+      <div class="rule" id="r5-2"><a class="p" href="#r5-2">§ 5.2</a><div><h3>Überfälle</h3><p>Überfälle auf Läden, Banken und Juweliere brauchen eine Mindestanzahl Beamter im Dienst. Die aktuellen Zahlen stehen im Discord.</p></div></div>
+      <div class="rule" id="r5-3"><a class="p" href="#r5-3">§ 5.3</a><div><h3>Geiseln</h3><p>Geiselnahmen dürfen nicht mit eigenen Freunden oder Gangmitgliedern gespielt werden. Geiseln werden mit Respekt behandelt.</p></div></div>
+      <div class="rule" id="r5-4"><a class="p" href="#r5-4">§ 5.4</a><div><h3>Ausrauben</h3><p>Ausgeraubt werden dürfen Bargeld und illegale Gegenstände. Dienstausrüstung von Fraktionen ist ausgenommen.</p></div></div>
+      <div class="rule" id="r5-5"><a class="p" href="#r5-5">§ 5.5</a><div><h3>Cop Baiting</h3><p>Die Polizei absichtlich ohne RP-Hintergrund zu provozieren, um eine Verfolgung auszulösen, ist verboten.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k6"><h2><span class="n">06</span>Fraktionen</h2>
+      <div class="rule" id="r6-1"><a class="p" href="#r6-1">§ 6.1</a><div><h3>Bewerbung</h3><p>Staatliche Fraktionen und Gangs werden über den Discord beantragt. Ohne Genehmigung darf keine Fraktion gespielt werden.</p></div></div>
+      <div class="rule" id="r6-2"><a class="p" href="#r6-2">§ 6.2</a><div><h3>Dienstausrüstung</h3><p>Ausrüstung aus dem Dienst darf nicht privat genutzt, verkauft oder weitergegeben werden.</p></div></div>
+      <div class="rule" id="r6-3"><a class="p" href="#r6-3">§ 6.3</a><div><h3>Fraktionswechsel</h3><p>Zwischen zwei Fraktionswechseln liegen mindestens 7 Tage. Wissen aus der alten Fraktion darf nicht verwendet werden.</p></div></div>
+      <div class="rule" id="r6-4"><a class="p" href="#r6-4">§ 6.4</a><div><h3>Korruption</h3><p>Korruption in staatlichen Fraktionen ist nur mit Genehmigung der Projektleitung erlaubt.</p></div></div>
+    </section>
+
+    <section class="chapter" id="k7"><h2><span class="n">07</span>Support &amp; Strafen</h2>
+      <div class="rule" id="r7-1"><a class="p" href="#r7-1">§ 7.1</a><div><h3>Support-Tickets</h3><p>Anliegen und Regelverstöße werden per Ticket im Discord gemeldet. Privatnachrichten an Teammitglieder werden nicht bearbeitet.</p></div></div>
+      <div class="rule" id="r7-2"><a class="p" href="#r7-2">§ 7.2</a><div><h3>Beweise</h3><p>Meldungen brauchen einen Clip. Ohne Beweis kann das Team nicht handeln. Nimm deshalb am besten dauerhaft auf.</p></div></div>
+      <div class="rule" id="r7-3"><a class="p" href="#r7-3">§ 7.3</a><div><h3>Strafkatalog</h3><p>Strafen richten sich nach Schwere und Wiederholung. Das Team kann Stufen überspringen.</p></div></div>
+      <div class="tbl"><table class="strafen">
+        <thead><tr><th>Stufe</th><th>Strafe</th><th>Beispiel</th></tr></thead>
+        <tbody>
+          <tr><td><span class="lv" style="background:#4fe0a0"></span>1</td><td>Verwarnung</td><td>OOC im Spiel, Parkverstoß</td></tr>
+          <tr><td><span class="lv" style="background:#ffc04f"></span>2</td><td>Kick oder Timeout</td><td>Powergaming, Fear RP missachtet</td></tr>
+          <tr><td><span class="lv" style="background:#ff7a45"></span>3</td><td>Bann 1–7 Tage</td><td>RDM, VDM, Combat Logging</td></tr>
+          <tr><td><span class="lv" style="background:#ff4f6a"></span>4</td><td>Permanenter Bann</td><td>Cheats, Bann-Umgehung, Rassismus</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <p class="empty" id="empty" hidden>Keine Regel gefunden. Versuch einen anderen Begriff oder frag im Discord-Support.</p>
+  </main>
+</div>
+
+<footer><div class="wrap">
+  <span>© 2026 Real Life Southland</span>
+  <span>Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+</div></footer>
+
+<script>
+// Suche
+const q=document.getElementById('q'),rules=[...document.querySelectorAll('.rule')],chapters=[...document.querySelectorAll('.chapter')],empty=document.getElementById('empty');
+rules.forEach(r=>r.querySelectorAll('h3,p').forEach(el=>el.dataset.raw=el.textContent));
+const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+q.addEventListener('input',()=>{
+  const v=q.value.trim(),re=v?new RegExp(esc(v),'gi'):null;let any=false;
+  rules.forEach(r=>{
+    const els=r.querySelectorAll('h3,p'),txt=[...els].map(e=>e.dataset.raw).join(' ')+r.querySelector('.p').textContent;
+    const hit=!re||re.test(txt);re&&(re.lastIndex=0);r.hidden=!hit;any=any||hit;
+    els.forEach(e=>{e.textContent=e.dataset.raw;if(re&&hit)e.innerHTML=e.textContent.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(new RegExp(esc(v.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))),'gi'),m=>'<mark>'+m+'</mark>')});
+  });
+  chapters.forEach(c=>{const vis=c.querySelectorAll('.rule:not([hidden])').length;c.hidden=!vis;const t=c.querySelector('.tbl');if(t)t.hidden=!!v});
+  empty.hidden=any;
+});
+// Aktives Kapitel im Inhaltsverzeichnis
+const links=[...document.querySelectorAll('#toc a')];
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))}}),{rootMargin:'-30% 0px -60% 0px'});
+chapters.forEach(c=>io.observe(c));
+</script>
+</body>
+</html>
