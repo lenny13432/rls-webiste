@@ -498,7 +498,15 @@ async function getDashboard({ request, env }) {
     all(db.prepare("SELECT id, title, status, priority, due, category FROM dev_tasks WHERE assignee_id = ? AND status <> 'fertig' ORDER BY CASE priority WHEN 'kritisch' THEN 0 WHEN 'hoch' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, due IS NULL, due LIMIT 8").bind(me.id)),
     one('SELECT COUNT(*) AS n FROM news WHERE published = 1')
   ]);
+  const today = n.slice(0, 10);
+  const [upcoming, away, openPolls] = await Promise.all([
+    all(db.prepare(`SELECT e.id, e.title, e.kind, e.starts_at, e.location, (SELECT status FROM event_rsvp r WHERE r.event_id = e.id AND r.admin_id = ?) AS mine,
+        (SELECT COUNT(*) FROM event_rsvp r WHERE r.event_id = e.id AND r.status = 'ja') AS yes FROM events e WHERE e.starts_at > ? ORDER BY e.starts_at LIMIT 4`).bind(me.id, isoAgo(2 * 3600e3))),
+    all(db.prepare('SELECT x.id, x.to_date, x.reason, a.name FROM absences x JOIN admins a ON a.id = x.admin_id WHERE x.from_date <= ? AND x.to_date >= ? ORDER BY x.to_date').bind(today, today)),
+    all(db.prepare('SELECT p.id, p.question, p.closes_at FROM polls p WHERE p.closed = 0 AND (p.closes_at IS NULL OR p.closes_at > ?) AND NOT EXISTS (SELECT 1 FROM poll_votes v WHERE v.poll_id = p.id AND v.admin_id = ?) ORDER BY p.id DESC LIMIT 4').bind(n, me.id))
+  ]);
   return json({
+    team: { upcoming, away, openPolls },
     stats: { appsOpen: apps.offen || 0, appsReview: apps.pruefung || 0, myTasks: myTasks.n, bugs: bugs.n, bans: bans.n, players: players.n, tasksTotal: prog.total || 0, tasksDone: prog.done || 0, news: news.n },
     announcements: ann, feed, mine
   });
@@ -1061,6 +1069,366 @@ async function saveLauncher({ request, env }) {
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------- Team-Management
+// Teamakten, Kalender & Besprechungen, Abwesenheiten, Abstimmungen, Textbausteine, Statistik
+const TEAM_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS team_profiles (admin_id INTEGER PRIMARY KEY, rank TEXT, area TEXT, discord TEXT, joined TEXT, probation_until TEXT, bio TEXT, onboarding TEXT, updated_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS team_records (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, by_id INTEGER, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'meeting', starts_at TEXT NOT NULL, ends_at TEXT, location TEXT, body TEXT, protocol TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS event_rsvp (event_id INTEGER NOT NULL, admin_id INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY (event_id, admin_id))`,
+  `CREATE TABLE IF NOT EXISTS absences (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER NOT NULL, from_date TEXT NOT NULL, to_date TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, body TEXT, options TEXT NOT NULL, anonymous INTEGER NOT NULL DEFAULT 0, closes_at TEXT, closed INTEGER NOT NULL DEFAULT 0, created_by INTEGER, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS poll_votes (poll_id INTEGER NOT NULL, admin_id INTEGER NOT NULL, option INTEGER NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (poll_id, admin_id))`,
+  `CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT NOT NULL, body TEXT NOT NULL, uses INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, updated_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_events_start ON events(starts_at)`,
+  `CREATE INDEX IF NOT EXISTS idx_absences_to ON absences(to_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_activity_admin ON activity(admin_id, created_at)`
+];
+PANEL_SCHEMA.push(...TEAM_SCHEMA);
+
+const RANKS = ['Projektinhaber', 'Projektleitung', 'Stv. Projektleitung', 'Head-Admin', 'Admin', 'Moderator', 'Supporter', 'Test-Supporter', 'Developer', 'Mapper', 'Eventmanager', 'Social Media'];
+const AREAS = ['Leitung', 'Support', 'Moderation', 'Entwicklung', 'Mapping', 'Events', 'Fraktionsbetreuung', 'Social Media'];
+const ONBOARDING = ['Regelwerk gelesen und verstanden', 'Discord-Rollen erhalten', 'txAdmin-Zugang eingerichtet', 'Panel-Einweisung bekommen', 'Erstes Ticket begleitet', 'Sanktions-Richtlinien besprochen', 'Probezeit-Gespräch geführt'];
+const RECORD_KINDS = ['lob', 'hinweis', 'verwarnung'];
+const RECORD_LABEL = { lob: 'Lob', hinweis: 'Hinweis', verwarnung: 'Team-Verwarnung' };
+const EVENT_KINDS = ['meeting', 'event', 'schulung', 'wartung', 'release', 'sonstiges'];
+const EVENT_LABEL = { meeting: 'Teammeeting', event: 'Server-Event', schulung: 'Schulung', wartung: 'Wartung', release: 'Release', sonstiges: 'Sonstiges' };
+const RSVP = ['ja', 'vielleicht', 'nein'];
+const isoOrNull = (v) => { if (!v) return null; const d = new Date(v); if (isNaN(d)) throw new HttpError('Ungültiges Datum.'); return d.toISOString(); };
+const canManage = (me, ownerId) => me.role === 'owner' || me.id === ownerId;
+
+// ---------- Teamliste & Teamakten
+async function getTeamList({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, today = now().slice(0, 10), since = isoAgo(30 * 864e5);
+  const rows = await all(db.prepare(`SELECT a.id, a.name, a.role, a.active, a.last_login, a.created_at, p.rank, p.area, p.discord, p.joined, p.probation_until, p.bio, p.onboarding,
+      (SELECT COUNT(*) FROM activity v WHERE v.admin_id = a.id AND v.created_at > ?) AS actions30,
+      (SELECT MAX(v.created_at) FROM activity v WHERE v.admin_id = a.id) AS last_action,
+      (SELECT x.to_date || '|' || COALESCE(x.reason, '') FROM absences x WHERE x.admin_id = a.id AND x.from_date <= ? AND x.to_date >= ? ORDER BY x.to_date DESC LIMIT 1) AS away,
+      (SELECT COUNT(*) FROM team_records r WHERE r.admin_id = a.id AND r.kind = 'verwarnung') AS warns,
+      (SELECT COUNT(*) FROM team_records r WHERE r.admin_id = a.id AND r.kind = 'lob') AS praise
+    FROM admins a LEFT JOIN team_profiles p ON p.admin_id = a.id ORDER BY a.active DESC, a.name`).bind(since, today, today));
+  const out = rows.map((r) => {
+    let ob = {}; try { ob = JSON.parse(r.onboarding || '{}'); } catch {}
+    const o = { ...r, onboarding: ob, away: r.away ? { until: r.away.split('|')[0], reason: r.away.split('|').slice(1).join('|') } : null };
+    if (me.role !== 'owner' && me.id !== r.id) { delete o.warns; delete o.praise; }
+    return o;
+  });
+  return json({ rows: out, ranks: RANKS, areas: AREAS, onboardingItems: ONBOARDING });
+}
+
+async function getTeamMember({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const a = await db.prepare('SELECT a.id, a.name, a.role, a.active, a.last_login, a.created_at, p.* FROM admins a LEFT JOIN team_profiles p ON p.admin_id = a.id WHERE a.id = ?').bind(id).first();
+  if (!a) throw new HttpError('Dieses Teammitglied gibt es nicht.', 404);
+  a.id = id; let ob = {}; try { ob = JSON.parse(a.onboarding || '{}'); } catch {} a.onboarding = ob;
+  const mayRecords = me.role === 'owner' || me.id === id;
+  const [records, recent, absences, kinds] = await Promise.all([
+    mayRecords ? all(db.prepare('SELECT r.*, b.name AS by_name FROM team_records r LEFT JOIN admins b ON b.id = r.by_id WHERE r.admin_id = ? ORDER BY r.id DESC').bind(id)) : [],
+    all(db.prepare('SELECT * FROM activity WHERE admin_id = ? ORDER BY id DESC LIMIT 15').bind(id)),
+    all(db.prepare('SELECT * FROM absences WHERE admin_id = ? AND to_date >= ? ORDER BY from_date').bind(id, now().slice(0, 10))),
+    all(db.prepare('SELECT kind, COUNT(*) AS n FROM activity WHERE admin_id = ? AND created_at > ? GROUP BY kind').bind(id, isoAgo(30 * 864e5)))
+  ]);
+  return json({ member: a, records, recent, absences, kinds, mayRecords, ranks: RANKS, areas: AREAS, onboardingItems: ONBOARDING });
+}
+
+async function saveTeamProfile({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const t = await db.prepare('SELECT name FROM admins WHERE id = ?').bind(id).first();
+  if (!t) throw new HttpError('Dieses Teammitglied gibt es nicht.', 404);
+  const old = (await db.prepare('SELECT * FROM team_profiles WHERE admin_id = ?').bind(id).first()) || {};
+  const owner = me.role === 'owner';
+  if (!owner && me.id !== id) throw new HttpError('Fremde Profile ändert nur die Projektleitung.', 403);
+  const p = {
+    discord: has(b, 'discord') ? str(b.discord, 60) : old.discord ?? '',
+    bio: has(b, 'bio') ? str(b.bio, 1000) : old.bio ?? '',
+    rank: old.rank ?? '', area: old.area ?? '', joined: old.joined ?? null, probation_until: old.probation_until ?? null, onboarding: old.onboarding ?? '{}'
+  };
+  const restricted = ['rank', 'area', 'joined', 'probation_until', 'onboarding'].filter((k) => has(b, k));
+  if (restricted.length && !owner) throw new HttpError('Rang, Bereich, Probezeit und Einarbeitung ändert nur die Projektleitung.', 403);
+  if (has(b, 'rank')) p.rank = str(b.rank, 40);
+  if (has(b, 'area')) p.area = str(b.area, 40);
+  if (has(b, 'joined')) p.joined = dateOrNull(b.joined);
+  if (has(b, 'probation_until')) p.probation_until = dateOrNull(b.probation_until);
+  if (has(b, 'onboarding')) { const o = {}; for (const k of ONBOARDING) if (b.onboarding && b.onboarding[k]) o[k] = true; p.onboarding = JSON.stringify(o); }
+  const text = has(b, 'onboarding') && Object.keys(b).length === 1 ? `hat die Einarbeitung von ${q(t.name)} aktualisiert`
+    : has(b, 'rank') && p.rank !== old.rank ? `hat ${q(t.name)} den Rang „${p.rank || '–'}“ gegeben` : me.id === id ? 'hat sein Team-Profil bearbeitet' : `hat das Profil von ${q(t.name)} bearbeitet`;
+  await db.batch([
+    db.prepare(`INSERT INTO team_profiles (admin_id, rank, area, discord, joined, probation_until, bio, onboarding, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(admin_id) DO UPDATE SET rank = excluded.rank, area = excluded.area, discord = excluded.discord, joined = excluded.joined, probation_until = excluded.probation_until, bio = excluded.bio, onboarding = excluded.onboarding, updated_at = excluded.updated_at`)
+      .bind(id, p.rank, p.area, p.discord, p.joined, p.probation_until, p.bio, p.onboarding, now()),
+    act(db, me, 'team', 'profile', id, text)
+  ]);
+  return json({ ok: true });
+}
+
+async function addTeamRecord({ request, env, params, ctx }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const t = await db.prepare('SELECT name FROM admins WHERE id = ?').bind(id).first();
+  if (!t) throw new HttpError('Dieses Teammitglied gibt es nicht.', 404);
+  const kind = pick(b.kind, RECORD_KINDS, ''), text = str(b.text, 1500);
+  if (!kind) throw new HttpError('Wähl die Art des Eintrags.');
+  if (len(text) < 3) throw new HttpError('Schreib kurz, worum es geht.');
+  await db.batch([
+    db.prepare('INSERT INTO team_records (admin_id, kind, text, by_id, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, kind, text, me.id, now()),
+    act(db, me, 'team', 'profile', id, kind === 'lob' ? `hat ${q(t.name)} gelobt 🌟` : `hat in der Teamakte von ${q(t.name)} etwas vermerkt`)
+  ]);
+  return json({ ok: true }, 201);
+}
+async function deleteTeamRecord({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id);
+  const r = await db.prepare('SELECT r.admin_id, a.name FROM team_records r JOIN admins a ON a.id = r.admin_id WHERE r.id = ?').bind(id).first();
+  if (!r) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM team_records WHERE id = ?').bind(id), act(db, me, 'team', 'profile', r.admin_id, `hat einen Eintrag aus der Teamakte von ${q(r.name)} entfernt`)]);
+  return json({ ok: true });
+}
+
+// ---------- Kalender & Besprechungen
+async function listEvents({ request, env, url }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
+  const from = isoOrNull(url.searchParams.get('from')) || isoAgo(40 * 864e5);
+  const to = isoOrNull(url.searchParams.get('to')) || new Date(Date.now() + 120 * 864e5).toISOString();
+  const [events, rsvps, absences, team] = await Promise.all([
+    all(db.prepare('SELECT e.*, c.name AS created_by_name FROM events e LEFT JOIN admins c ON c.id = e.created_by WHERE e.starts_at >= ? AND e.starts_at <= ? ORDER BY e.starts_at').bind(from, to)),
+    all(db.prepare('SELECT r.event_id, r.admin_id, r.status, a.name FROM event_rsvp r JOIN admins a ON a.id = r.admin_id WHERE r.event_id IN (SELECT id FROM events WHERE starts_at >= ? AND starts_at <= ?)').bind(from, to)),
+    all(db.prepare('SELECT x.*, a.name FROM absences x JOIN admins a ON a.id = x.admin_id WHERE x.to_date >= ? AND x.from_date <= ? ORDER BY x.from_date').bind(from.slice(0, 10), to.slice(0, 10))),
+    all(db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name'))
+  ]);
+  for (const e of events) { e.rsvp = rsvps.filter((r) => r.event_id === e.id).map(({ admin_id, status, name }) => ({ admin_id, status, name })); e.mine = e.rsvp.find((r) => r.admin_id === me.id)?.status || null; }
+  return json({ events, absences, team, kinds: EVENT_LABEL });
+}
+function eventFields(b, old = {}) {
+  const e = {
+    title: has(b, 'title') ? str(b.title, 120) : old.title,
+    kind: has(b, 'kind') ? pick(b.kind, EVENT_KINDS, 'meeting') : old.kind ?? 'meeting',
+    starts_at: has(b, 'starts_at') ? isoOrNull(b.starts_at) : old.starts_at,
+    ends_at: has(b, 'ends_at') ? isoOrNull(b.ends_at) : old.ends_at ?? null,
+    location: has(b, 'location') ? str(b.location, 120) : old.location ?? '',
+    body: has(b, 'body') ? str(b.body, 6000) : old.body ?? '',
+    protocol: has(b, 'protocol') ? str(b.protocol, 20000) : old.protocol ?? ''
+  };
+  if (len(e.title) < 2) throw new HttpError('Gib dem Termin einen Titel.');
+  if (!e.starts_at) throw new HttpError('Wann ist der Termin?');
+  if (e.ends_at && e.ends_at < e.starts_at) throw new HttpError('Das Ende liegt vor dem Beginn.');
+  return e;
+}
+async function createEvent({ request, env, ctx }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, e = eventFields(await readBody(request));
+  const r = await db.prepare('INSERT INTO events (title, kind, starts_at, ends_at, location, body, protocol, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(e.title, e.kind, e.starts_at, e.ends_at, e.location, e.body, e.protocol, me.id, now(), now()).run();
+  const id = r.meta.last_row_id;
+  await db.batch([
+    db.prepare("INSERT INTO event_rsvp (event_id, admin_id, status) VALUES (?, ?, 'ja')").bind(id, me.id),
+    act(db, me, 'team', 'event', id, `hat den Termin ${q(e.title)} angelegt (${EVENT_LABEL[e.kind]})`)
+  ]);
+  const when = new Date(e.starts_at).toLocaleString('de-DE', { timeZone: 'Europe/Berlin', dateStyle: 'full', timeStyle: 'short' });
+  await discordNotify(env, ctx, { title: `📅 ${EVENT_LABEL[e.kind]}: ${e.title}`, color: 0x7aa8ff, url: siteLink(env, '/admin/#kalender'), description: `**Wann:** ${when}${e.location ? `\n**Wo:** ${e.location}` : ''}\nZu- oder absagen im Team-Panel.` });
+  return json({ ok: true, id }, 201);
+}
+async function updateEvent({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM events WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diesen Termin gibt es nicht mehr.', 404);
+  const b = await readBody(request), e = eventFields(b, old);
+  const onlyProtocol = Object.keys(b).length === 1 && has(b, 'protocol');
+  await db.batch([
+    db.prepare('UPDATE events SET title = ?, kind = ?, starts_at = ?, ends_at = ?, location = ?, body = ?, protocol = ?, updated_at = ? WHERE id = ?').bind(e.title, e.kind, e.starts_at, e.ends_at, e.location, e.body, e.protocol, now(), id),
+    act(db, me, 'team', 'event', id, onlyProtocol ? `hat das Protokoll zu ${q(e.title)} geschrieben` : `hat den Termin ${q(e.title)} bearbeitet`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteEvent({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title, created_by FROM events WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  if (!canManage(me, old.created_by)) throw new HttpError('Nur wer den Termin angelegt hat oder der Owner darf ihn löschen.', 403);
+  await db.batch([db.prepare('DELETE FROM event_rsvp WHERE event_id = ?').bind(id), db.prepare('DELETE FROM events WHERE id = ?').bind(id), act(db, me, 'team', 'event', id, `hat den Termin ${q(old.title)} abgesagt`)]);
+  return json({ ok: true });
+}
+async function rsvpEvent({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), status = pick((await readBody(request)).status, RSVP, '');
+  if (!status) throw new HttpError('Zusage, Vielleicht oder Absage?');
+  const e = await db.prepare('SELECT title FROM events WHERE id = ?').bind(id).first();
+  if (!e) throw new HttpError('Diesen Termin gibt es nicht mehr.', 404);
+  await db.batch([
+    db.prepare('INSERT INTO event_rsvp (event_id, admin_id, status) VALUES (?, ?, ?) ON CONFLICT(event_id, admin_id) DO UPDATE SET status = excluded.status').bind(id, me.id, status),
+    act(db, me, 'team', 'event', id, `hat für ${q(e.title)} ${status === 'ja' ? 'zugesagt ✅' : status === 'nein' ? 'abgesagt' : 'mit „vielleicht“ geantwortet'}`)
+  ]);
+  return json({ ok: true });
+}
+
+// ---------- Abwesenheiten
+async function createAbsence({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request);
+  const from = dateOrNull(b.from_date), to = dateOrNull(b.to_date), reason = str(b.reason, 200);
+  let who = me.id;
+  if (b.admin_id && Number(b.admin_id) !== me.id) { if (me.role !== 'owner') throw new HttpError('Für andere trägt nur der Owner Abwesenheiten ein.', 403); who = Number(b.admin_id); }
+  if (!from || !to) throw new HttpError('Von wann bis wann bist du weg?');
+  if (to < from) throw new HttpError('„Bis“ liegt vor „Von“.');
+  const name = (await db.prepare('SELECT name FROM admins WHERE id = ?').bind(who).first())?.name || '?';
+  const r = await db.prepare('INSERT INTO absences (admin_id, from_date, to_date, reason, created_at) VALUES (?, ?, ?, ?, ?)').bind(who, from, to, reason, now()).run();
+  const fmtD = (d) => d.split('-').reverse().join('.');
+  await act(db, me, 'team', 'absence', r.meta.last_row_id, `${who === me.id ? 'ist abwesend' : `hat ${q(name)} als abwesend eingetragen:`} ${fmtD(from)} – ${fmtD(to)}${reason ? ' (' + reason + ')' : ''}`).run();
+  return json({ ok: true }, 201);
+}
+async function deleteAbsence({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const x = await db.prepare('SELECT * FROM absences WHERE id = ?').bind(id).first();
+  if (!x) return json({ ok: true });
+  if (!canManage(me, x.admin_id)) throw new HttpError('Das darf nur die Person selbst oder der Owner.', 403);
+  await db.batch([db.prepare('DELETE FROM absences WHERE id = ?').bind(id), act(db, me, 'team', 'absence', id, 'hat eine Abwesenheit gelöscht')]);
+  return json({ ok: true });
+}
+
+// ---------- Abstimmungen
+async function listPolls({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
+  const [polls, votes, team] = await Promise.all([
+    all(db.prepare('SELECT p.*, c.name AS created_by_name FROM polls p LEFT JOIN admins c ON c.id = p.created_by ORDER BY (p.closed = 0 AND (p.closes_at IS NULL OR p.closes_at > ?)) DESC, p.id DESC LIMIT 60').bind(now())),
+    all(db.prepare('SELECT v.poll_id, v.admin_id, v.option, a.name FROM poll_votes v JOIN admins a ON a.id = v.admin_id')),
+    db.prepare('SELECT COUNT(*) AS n FROM admins WHERE active = 1').first()
+  ]);
+  const n = now();
+  const rows = polls.map((p) => {
+    let options = []; try { options = JSON.parse(p.options); } catch {}
+    const vs = votes.filter((v) => v.poll_id === p.id);
+    const open = !p.closed && (!p.closes_at || p.closes_at > n);
+    return {
+      ...p, options, open, total: vs.length, teamSize: team.n,
+      counts: options.map((_, i) => vs.filter((v) => v.option === i).length),
+      voters: p.anonymous ? null : options.map((_, i) => vs.filter((v) => v.option === i).map((v) => v.name)),
+      mine: vs.find((v) => v.admin_id === me.id)?.option ?? null
+    };
+  });
+  return json({ rows });
+}
+async function createPoll({ request, env, ctx }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request);
+  const question = str(b.question, 200), body = str(b.body, 2000);
+  const options = (Array.isArray(b.options) ? b.options : []).map((o) => str(o, 100)).filter(Boolean).slice(0, 10);
+  if (len(question) < 3) throw new HttpError('Wie lautet die Frage?');
+  if (options.length < 2) throw new HttpError('Eine Abstimmung braucht mindestens zwei Antworten.');
+  if (new Set(options.map((o) => o.toLowerCase())).size !== options.length) throw new HttpError('Jede Antwort darf nur einmal vorkommen.');
+  const closes = isoOrNull(b.closes_at);
+  const r = await db.prepare('INSERT INTO polls (question, body, options, anonymous, closes_at, closed, created_by, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)')
+    .bind(question, body, JSON.stringify(options), b.anonymous ? 1 : 0, closes, me.id, now()).run();
+  await act(db, me, 'team', 'poll', r.meta.last_row_id, `hat eine Abstimmung gestartet: ${q(question)}`).run();
+  await discordNotify(env, ctx, { title: `🗳️ Neue Abstimmung: ${question}`, color: 0xb47cff, url: siteLink(env, '/admin/#abstimmungen'), description: options.map((o) => '• ' + o).join('\n') + '\n\nAbstimmen im Team-Panel.' });
+  return json({ ok: true }, 201);
+}
+async function votePoll({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const p = await db.prepare('SELECT * FROM polls WHERE id = ?').bind(id).first();
+  if (!p) throw new HttpError('Diese Abstimmung gibt es nicht mehr.', 404);
+  if (p.closed || (p.closes_at && p.closes_at <= now())) throw new HttpError('Diese Abstimmung ist schon beendet.');
+  const n = JSON.parse(p.options).length, opt = parseInt(b.option, 10);
+  if (!(opt >= 0 && opt < n)) throw new HttpError('Ungültige Antwort.');
+  await db.batch([
+    db.prepare('INSERT INTO poll_votes (poll_id, admin_id, option, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(poll_id, admin_id) DO UPDATE SET option = excluded.option, created_at = excluded.created_at').bind(id, me.id, opt, now()),
+    act(db, me, 'team', 'poll', id, `hat bei ${q(p.question)} abgestimmt`)
+  ]);
+  return json({ ok: true });
+}
+async function closePoll({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const p = await db.prepare('SELECT question, created_by FROM polls WHERE id = ?').bind(id).first();
+  if (!p) throw new HttpError('Diese Abstimmung gibt es nicht mehr.', 404);
+  if (!canManage(me, p.created_by)) throw new HttpError('Beenden darf nur, wer sie gestartet hat, oder der Owner.', 403);
+  await db.batch([db.prepare('UPDATE polls SET closed = 1 WHERE id = ?').bind(id), act(db, me, 'team', 'poll', id, `hat die Abstimmung ${q(p.question)} beendet`)]);
+  return json({ ok: true });
+}
+async function deletePoll({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const p = await db.prepare('SELECT question, created_by FROM polls WHERE id = ?').bind(id).first();
+  if (!p) return json({ ok: true });
+  if (!canManage(me, p.created_by)) throw new HttpError('Löschen darf nur, wer sie gestartet hat, oder der Owner.', 403);
+  await db.batch([db.prepare('DELETE FROM poll_votes WHERE poll_id = ?').bind(id), db.prepare('DELETE FROM polls WHERE id = ?').bind(id), act(db, me, 'team', 'poll', id, `hat die Abstimmung ${q(p.question)} gelöscht`)]);
+  return json({ ok: true });
+}
+
+// ---------- Textbausteine
+async function listSnippets({ request, env }) {
+  await requireAdmin(request, env);
+  return json({ rows: await all(env.DB.prepare('SELECT s.*, a.name AS admin_name FROM snippets s LEFT JOIN admins a ON a.id = s.admin_id ORDER BY LOWER(COALESCE(s.category, \'\')), s.uses DESC, LOWER(s.title)')) });
+}
+function snippetFields(b, old = {}) {
+  const s = { category: has(b, 'category') ? str(b.category, 40) : old.category ?? '', title: has(b, 'title') ? str(b.title, 100) : old.title, body: has(b, 'body') ? str(b.body, 4000) : old.body };
+  if (len(s.title) < 2) throw new HttpError('Gib dem Textbaustein einen Namen.');
+  if (len(s.body) < 2) throw new HttpError('Der Text ist leer.');
+  return s;
+}
+async function createSnippet({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, s = snippetFields(await readBody(request));
+  const r = await db.prepare('INSERT INTO snippets (category, title, body, uses, admin_id, updated_at) VALUES (?, ?, ?, 0, ?, ?)').bind(s.category, s.title, s.body, me.id, now()).run();
+  await act(db, me, 'team', 'snippet', r.meta.last_row_id, `hat den Textbaustein ${q(s.title)} angelegt`).run();
+  return json({ ok: true }, 201);
+}
+async function updateSnippet({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM snippets WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diesen Textbaustein gibt es nicht mehr.', 404);
+  const s = snippetFields(await readBody(request), old);
+  await db.batch([db.prepare('UPDATE snippets SET category = ?, title = ?, body = ?, admin_id = ?, updated_at = ? WHERE id = ?').bind(s.category, s.title, s.body, me.id, now(), id), act(db, me, 'team', 'snippet', id, `hat den Textbaustein ${q(s.title)} bearbeitet`)]);
+  return json({ ok: true });
+}
+async function useSnippet({ request, env, params }) {
+  await requireAdmin(request, env);
+  await env.DB.prepare('UPDATE snippets SET uses = uses + 1 WHERE id = ?').bind(Number(params.id)).run();
+  return json({ ok: true });
+}
+async function deleteSnippet({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title FROM snippets WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM snippets WHERE id = ?').bind(id), act(db, me, 'team', 'snippet', id, `hat den Textbaustein ${q(old.title)} gelöscht`)]);
+  return json({ ok: true });
+}
+
+// ---------- Statistik
+async function getStats({ request, env, url }) {
+  await requireAdmin(request, env);
+  const db = env.DB, days = [7, 30, 90].includes(Number(url.searchParams.get('days'))) ? Number(url.searchParams.get('days')) : 30;
+  const since = isoAgo(days * 864e5);
+  const [people, byKind, daily, decided, sanctions, tasksDone, totals] = await Promise.all([
+    all(db.prepare('SELECT a.id, a.name, p.rank FROM admins a LEFT JOIN team_profiles p ON p.admin_id = a.id WHERE a.active = 1 ORDER BY a.name')),
+    all(db.prepare('SELECT admin_id, kind, COUNT(*) AS n FROM activity WHERE created_at > ? AND admin_id IS NOT NULL GROUP BY admin_id, kind').bind(since)),
+    all(db.prepare('SELECT substr(created_at, 1, 10) AS d, COUNT(*) AS n FROM activity WHERE created_at > ? GROUP BY d ORDER BY d').bind(since)),
+    all(db.prepare("SELECT decided_by AS id, COUNT(*) AS n FROM applications WHERE decided_at > ? AND status IN ('angenommen','abgelehnt') GROUP BY decided_by").bind(since)),
+    all(db.prepare('SELECT admin_id AS id, COUNT(*) AS n FROM sanctions WHERE created_at > ? GROUP BY admin_id').bind(since)),
+    all(db.prepare("SELECT assignee_id AS id, COUNT(*) AS n FROM dev_tasks WHERE status = 'fertig' AND updated_at > ? AND assignee_id IS NOT NULL GROUP BY assignee_id").bind(since)),
+    db.prepare(`SELECT (SELECT COUNT(*) FROM activity WHERE created_at > ?1) AS actions,
+      (SELECT COUNT(*) FROM applications WHERE created_at > ?1) AS apps,
+      (SELECT COUNT(*) FROM sanctions WHERE created_at > ?1) AS sanctions,
+      (SELECT COUNT(*) FROM dev_tasks WHERE status = 'fertig' AND updated_at > ?1) AS tasks,
+      (SELECT COUNT(*) FROM events WHERE starts_at > ?1 AND starts_at <= ?2) AS events`).bind(since, now()).first()
+  ]);
+  const get = (arr, id) => arr.find((x) => x.id === id)?.n || 0;
+  const rows = people.map((p) => {
+    const kinds = Object.fromEntries(byKind.filter((k) => k.admin_id === p.id).map((k) => [k.kind, k.n]));
+    return { ...p, actions: Object.values(kinds).reduce((a, b) => a + b, 0), kinds, decided: get(decided, p.id), sanctions: get(sanctions, p.id), tasks: get(tasksDone, p.id) };
+  }).sort((a, b) => b.actions - a.actions);
+  return json({ days, rows, daily, totals });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -1082,6 +1450,29 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['GET', 'admin/teamlist', getTeamList],
+  ['GET', 'admin/teamlist/:id', getTeamMember],
+  ['PUT', 'admin/teamlist/:id', saveTeamProfile],
+  ['POST', 'admin/teamlist/:id/records', addTeamRecord],
+  ['DELETE', 'admin/teamrecords/:id', deleteTeamRecord],
+  ['GET', 'admin/events', listEvents],
+  ['POST', 'admin/events', createEvent],
+  ['PUT', 'admin/events/:id', updateEvent],
+  ['DELETE', 'admin/events/:id', deleteEvent],
+  ['POST', 'admin/events/:id/rsvp', rsvpEvent],
+  ['POST', 'admin/absences', createAbsence],
+  ['DELETE', 'admin/absences/:id', deleteAbsence],
+  ['GET', 'admin/polls', listPolls],
+  ['POST', 'admin/polls', createPoll],
+  ['POST', 'admin/polls/:id/vote', votePoll],
+  ['POST', 'admin/polls/:id/close', closePoll],
+  ['DELETE', 'admin/polls/:id', deletePoll],
+  ['GET', 'admin/snippets', listSnippets],
+  ['POST', 'admin/snippets', createSnippet],
+  ['PUT', 'admin/snippets/:id', updateSnippet],
+  ['POST', 'admin/snippets/:id/use', useSnippet],
+  ['DELETE', 'admin/snippets/:id', deleteSnippet],
+  ['GET', 'admin/stats', getStats],
   ['GET', 'launcher', getPublicLauncher],
   ['GET', 'admin/launcher', getLauncherAdmin],
   ['PUT', 'admin/launcher', saveLauncher],

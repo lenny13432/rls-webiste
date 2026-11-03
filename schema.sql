@@ -83,3 +83,16 @@ CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status);
 CREATE INDEX IF NOT EXISTS idx_sanctions_player ON sanctions(player_id);
 CREATE INDEX IF NOT EXISTS idx_comments_task ON dev_comments(task_id);
 CREATE INDEX IF NOT EXISTS idx_checks_task ON dev_checks(task_id);
+
+-- Team-Bereich: Teamakten, Kalender, Abwesenheiten, Abstimmungen, Textbausteine
+CREATE TABLE IF NOT EXISTS team_profiles (admin_id INTEGER PRIMARY KEY, rank TEXT, area TEXT, discord TEXT, joined TEXT, probation_until TEXT, bio TEXT, onboarding TEXT, updated_at TEXT);
+CREATE TABLE IF NOT EXISTS team_records (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, by_id INTEGER, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'meeting', starts_at TEXT NOT NULL, ends_at TEXT, location TEXT, body TEXT, protocol TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS event_rsvp (event_id INTEGER NOT NULL, admin_id INTEGER NOT NULL, status TEXT NOT NULL, PRIMARY KEY (event_id, admin_id));
+CREATE TABLE IF NOT EXISTS absences (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER NOT NULL, from_date TEXT NOT NULL, to_date TEXT NOT NULL, reason TEXT, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT NOT NULL, body TEXT, options TEXT NOT NULL, anonymous INTEGER NOT NULL DEFAULT 0, closes_at TEXT, closed INTEGER NOT NULL DEFAULT 0, created_by INTEGER, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS poll_votes (poll_id INTEGER NOT NULL, admin_id INTEGER NOT NULL, option INTEGER NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (poll_id, admin_id));
+CREATE TABLE IF NOT EXISTS snippets (id INTEGER PRIMARY KEY AUTOINCREMENT, category TEXT, title TEXT NOT NULL, body TEXT NOT NULL, uses INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_events_start ON events(starts_at);
+CREATE INDEX IF NOT EXISTS idx_absences_to ON absences(to_date);
+CREATE INDEX IF NOT EXISTS idx_activity_admin ON activity(admin_id, created_at);

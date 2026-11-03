@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', launcher: 'Launcher', team: 'Team', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 function setNav(view) {
   const logged = !!me;
   $('sb').hidden = !logged; $('mtop').hidden = !logged;
@@ -83,7 +83,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher' };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -178,12 +178,19 @@ function route(live) {
   if ((m = h.match(/^spieler-(\d+)$/))) return showPlayer(+m[1]);
   if ((m = h.match(/^wiki-(\d+)$/))) return showWiki(+m[1]);
   if ((m = h.match(/^aufgabe-(\d+)$/))) return showDev('board', live ? null : +m[1]);
+  if ((m = h.match(/^teamliste-(\d+)$/))) return showMember(+m[1]);
+  if ((m = h.match(/^termin-(\d+)$/))) return showCalendar().then(() => { history.replaceState(null, '', '#kalender'); if (!live) eventDetail(+m[1]); });
   switch (h) {
     case 'liste': return showList();
     case 'spieler': return showPlayers();
     case 'news': return showNews();
     case 'launcher': return showLauncher();
     case 'team': return showTeam();
+    case 'teamliste': return showTeamList();
+    case 'kalender': return showCalendar();
+    case 'abstimmungen': return showPolls();
+    case 'vorlagen': return showSnippets();
+    case 'statistik': return showStats();
     case 'protokoll': return showLog();
     case 'einstellungen': return me.role === 'owner' ? showSettings() : showStart();
     case 'konto': return showAccount();
@@ -238,6 +245,14 @@ async function showStart() {
       ${tile('#spieler', s.bans, 'Aktive Bans', '', 'data-banned')}
       <a class="kpi prog" href="#roadmap"><b>${pct}%</b><span>Dev-Fortschritt · ${s.tasksDone}/${s.tasksTotal}</span><i style="--p:${pct}%"></i></a>
     </div>
+    ${d.team ? `<div class="tstrip">
+      <section class="card dpanel"><div class="dp-head"><h2>📅 Nächste Termine</h2><a class="muted" href="#kalender">Kalender →</a></div>
+        <div class="upc">${d.team.upcoming.map((e) => `<a class="upc-i" href="#termin-${e.id}"><span class="upc-d"><b>${new Date(e.starts_at).getDate()}</b>${new Date(e.starts_at).toLocaleDateString('de-DE', { month: 'short' })}</span><span class="upc-t"><b>${esc(e.title)}</b><small>${new Date(e.starts_at).toLocaleDateString('de-DE', { weekday: 'short' })}, ${new Date(e.starts_at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${e.yes} Zusagen</small>${e.mine ? '' : '<small><em class="rs-open">Du hast noch nicht geantwortet</em></small>'}</span></a>`).join('') || '<p class="muted" style="margin:0">Keine Termine geplant.</p>'}</div></section>
+      <section class="card dpanel"><div class="dp-head"><h2>🌴 Heute abwesend</h2><a class="muted" href="#kalender">Eintragen →</a></div>
+        <div class="absl">${d.team.away.map((x) => `<div class="abs-i">${ava(x.name)}<span><b>${esc(x.name)}</b><small>bis ${x.to_date.split('-').reverse().join('.')}${x.reason ? ' · ' + esc(x.reason) : ''}</small></span></div>`).join('') || '<p class="muted" style="margin:0">Alle da. 💪</p>'}</div></section>
+      <section class="card dpanel"><div class="dp-head"><h2>🗳️ Abstimmen</h2><a class="muted" href="#abstimmungen">Alle →</a></div>
+        <div class="upc">${d.team.openPolls.map((p) => `<a class="upc-i" href="#abstimmungen"><span class="upc-t"><b>${esc(p.question)}</b><small><em class="rs-open">Deine Stimme fehlt noch</em></small></span></a>`).join('') || '<p class="muted" style="margin:0">Du hast überall abgestimmt.</p>'}</div></section>
+    </div>` : ''}
     <div class="dash">
       <section class="card dpanel">
         <div class="dp-head"><h2>Pinnwand</h2><small class="muted">Nur fürs Team</small></div>
@@ -746,6 +761,10 @@ const QUICK = () => [
   ['Neue Aufgabe', '🛠️', () => { location.hash = '#dev'; setTimeout(() => taskDialog(), 250); }],
   ['Bug melden', '🐞', () => { location.hash = '#bugs'; setTimeout(() => taskDialog(null, 'todo', '', 'Bug'), 250); }],
   ['Spielerakte anlegen', '🛡️', () => { location.hash = '#spieler'; setTimeout(() => playerDialog(), 250); }],
+  ['Termin anlegen', '📅', () => { location.hash = '#kalender'; setTimeout(() => eventForm(), 400); }],
+  ['Abwesenheit eintragen', '🌴', () => { location.hash = '#kalender'; setTimeout(() => absenceForm(), 400); }],
+  ['Abstimmung starten', '🗳️', () => { location.hash = '#abstimmungen'; setTimeout(() => pollForm(), 300); }],
+  ['Textbaustein kopieren', '📋', () => { location.hash = '#vorlagen'; }],
   ['News schreiben', '📰', () => { location.hash = '#news'; setTimeout(() => $('addNews')?.click(), 350); }],
   ...Object.entries(TITLES).filter(([k]) => k !== 'einstellungen' || me?.role === 'owner').map(([k, t]) => [t, '→', () => { location.hash = '#' + k; }])
 ];
