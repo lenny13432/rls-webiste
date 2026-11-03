@@ -64,3 +64,8 @@ CREATE TABLE IF NOT EXISTS settings (
 INSERT OR IGNORE INTO settings (key, value) VALUES
   ('applications_open', 'true'),
   ('positions', '[{"name":"Supporter","state":"offen"},{"name":"Moderator","state":"offen"},{"name":"Entwickler","state":"wenige"},{"name":"Eventmanager","state":"offen"},{"name":"Social Media","state":"voll"}]');
+
+-- Dev-Panel (Roadmap & To-dos). Wird auch automatisch angelegt, sobald jemand das Dev-Panel öffnet.
+CREATE TABLE IF NOT EXISTS dev_milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, target TEXT, status TEXT NOT NULL DEFAULT 'geplant', sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS dev_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, status TEXT NOT NULL DEFAULT 'todo', priority TEXT NOT NULL DEFAULT 'normal', category TEXT NOT NULL DEFAULT 'Sonstiges', assignee_id INTEGER, milestone_id INTEGER, due TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status);

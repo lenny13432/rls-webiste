@@ -400,6 +400,123 @@ async function saveSettings({ request, env }) {
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------- Dev-Panel: Roadmap & To-dos
+const TASK_STATUS = ['idee', 'todo', 'arbeit', 'test', 'fertig'];
+const TASK_PRIO = ['niedrig', 'normal', 'hoch', 'kritisch'];
+const TASK_CAT = ['Script', 'Mapping', 'Fahrzeuge', 'Kleidung', 'Fraktionen', 'Server', 'Website', 'Launcher', 'Discord', 'Bug', 'Sonstiges'];
+const MS_STATUS = ['geplant', 'arbeit', 'fertig'];
+const DEV_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS dev_milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, target TEXT, status TEXT NOT NULL DEFAULT 'geplant', sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS dev_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, status TEXT NOT NULL DEFAULT 'todo', priority TEXT NOT NULL DEFAULT 'normal', category TEXT NOT NULL DEFAULT 'Sonstiges', assignee_id INTEGER, milestone_id INTEGER, due TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status)`
+];
+let devReady = false;
+async function ensureDev(db) {
+  if (devReady) return;
+  await db.batch(DEV_SCHEMA.map((s) => db.prepare(s)));
+  devReady = true;
+}
+const pick = (v, list, d) => (list.includes(v) ? v : d);
+const dateOrNull = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+const idOrNull = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
+
+async function getDev({ request, env }) {
+  await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  const [tasks, milestones, team] = await Promise.all([
+    db.prepare(`SELECT t.*, a.name AS assignee_name, c.name AS created_by_name FROM dev_tasks t
+      LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by ORDER BY t.updated_at DESC`).all(),
+    db.prepare('SELECT * FROM dev_milestones ORDER BY sort, target IS NULL, target, id').all(),
+    db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name').all()
+  ]);
+  return json({ tasks: tasks.results, milestones: milestones.results, team: team.results, statuses: TASK_STATUS, priorities: TASK_PRIO, categories: TASK_CAT });
+}
+
+function taskFields(b, old = {}) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(b, k);
+  const t = {
+    title: has('title') ? str(b.title, 120) : old.title,
+    body: has('body') ? str(b.body, 4000) : old.body ?? '',
+    status: has('status') ? pick(b.status, TASK_STATUS, 'todo') : old.status ?? 'todo',
+    priority: has('priority') ? pick(b.priority, TASK_PRIO, 'normal') : old.priority ?? 'normal',
+    category: has('category') ? pick(b.category, TASK_CAT, 'Sonstiges') : old.category ?? 'Sonstiges',
+    assignee_id: has('assignee_id') ? idOrNull(b.assignee_id) : old.assignee_id ?? null,
+    milestone_id: has('milestone_id') ? idOrNull(b.milestone_id) : old.milestone_id ?? null,
+    due: has('due') ? dateOrNull(b.due) : old.due ?? null
+  };
+  if (!t.title || len(t.title) < 2) throw new HttpError('Gib der Aufgabe einen Titel.');
+  return t;
+}
+
+async function createTask({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  const t = taskFields(await readBody(request));
+  const r = await db.prepare(`INSERT INTO dev_tasks (title, body, status, priority, category, assignee_id, milestone_id, due, created_by, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(t.title, t.body, t.status, t.priority, t.category, t.assignee_id, t.milestone_id, t.due, me.id, now(), now()).run();
+  return json({ ok: true, id: r.meta.last_row_id }, 201);
+}
+
+async function updateTask({ request, env, params }) {
+  await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  const old = await db.prepare('SELECT * FROM dev_tasks WHERE id = ?').bind(Number(params.id)).first();
+  if (!old) throw new HttpError('Diese Aufgabe gibt es nicht mehr.', 404);
+  const t = taskFields(await readBody(request), old);
+  await db.prepare(`UPDATE dev_tasks SET title = ?, body = ?, status = ?, priority = ?, category = ?, assignee_id = ?, milestone_id = ?, due = ?, updated_at = ? WHERE id = ?`)
+    .bind(t.title, t.body, t.status, t.priority, t.category, t.assignee_id, t.milestone_id, t.due, now(), old.id).run();
+  return json({ ok: true });
+}
+
+async function deleteTask({ request, env, params }) {
+  await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  await db.prepare('DELETE FROM dev_tasks WHERE id = ?').bind(Number(params.id)).run();
+  return json({ ok: true });
+}
+
+function msFields(b, old = {}) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(b, k);
+  const m = {
+    title: has('title') ? str(b.title, 80) : old.title,
+    body: has('body') ? str(b.body, 2000) : old.body ?? '',
+    target: has('target') ? str(b.target, 40) : old.target ?? '',
+    status: has('status') ? pick(b.status, MS_STATUS, 'geplant') : old.status ?? 'geplant',
+    sort: has('sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0
+  };
+  if (!m.title || len(m.title) < 2) throw new HttpError('Gib dem Meilenstein einen Namen.');
+  return m;
+}
+
+async function createMilestone({ request, env }) {
+  await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  const m = msFields(await readBody(request));
+  if (!m.sort) m.sort = ((await db.prepare('SELECT MAX(sort) AS s FROM dev_milestones').first())?.s || 0) + 1;
+  const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(m.title, m.body, m.target || null, m.status, m.sort, now()).run();
+  return json({ ok: true, id: r.meta.last_row_id }, 201);
+}
+
+async function updateMilestone({ request, env, params }) {
+  await requireAdmin(request, env);
+  const db = env.DB; await ensureDev(db);
+  const old = await db.prepare('SELECT * FROM dev_milestones WHERE id = ?').bind(Number(params.id)).first();
+  if (!old) throw new HttpError('Diesen Meilenstein gibt es nicht mehr.', 404);
+  const m = msFields(await readBody(request), old);
+  await db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ? WHERE id = ?')
+    .bind(m.title, m.body, m.target || null, m.status, m.sort, old.id).run();
+  return json({ ok: true });
+}
+
+async function deleteMilestone({ request, env, params }) {
+  await requireAdmin(request, env, true);
+  const db = env.DB; await ensureDev(db);
+  const id = Number(params.id);
+  await db.batch([db.prepare('UPDATE dev_tasks SET milestone_id = NULL WHERE milestone_id = ?').bind(id), db.prepare('DELETE FROM dev_milestones WHERE id = ?').bind(id)]);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -419,7 +536,14 @@ const ROUTES = [
   ['POST', 'admin/team', createTeam],
   ['POST', 'admin/team/:id', updateTeam],
   ['POST', 'admin/password', changePassword],
-  ['PUT', 'admin/settings', saveSettings]
+  ['PUT', 'admin/settings', saveSettings],
+  ['GET', 'admin/dev', getDev],
+  ['POST', 'admin/dev/tasks', createTask],
+  ['PUT', 'admin/dev/tasks/:id', updateTask],
+  ['DELETE', 'admin/dev/tasks/:id', deleteTask],
+  ['POST', 'admin/dev/milestones', createMilestone],
+  ['PUT', 'admin/dev/milestones/:id', updateMilestone],
+  ['DELETE', 'admin/dev/milestones/:id', deleteMilestone]
 ];
 
 function match(pattern, path) {

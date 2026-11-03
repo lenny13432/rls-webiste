@@ -1,26 +1,27 @@
 /* Einheitliche Leiste oben + Footer für alle Seiten (Real Life Southland) */
 .rls-nav,.rls-nav *,.rls-foot,.rls-foot *{box-sizing:border-box}
-.rls-nav{position:sticky;top:0;z-index:50;height:68px;background:rgba(15,8,28,.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);font-family:Barlow,system-ui,sans-serif}
-.rls-in{max-width:1200px;height:100%;margin:0 auto;padding:0 20px;display:flex;align-items:center;gap:20px}
-.rls-brand{display:flex;align-items:center;gap:10px;flex:none;color:#fff;text-decoration:none}
-.rls-brand img{width:40px;height:40px;object-fit:contain;display:block}
-.rls-brand span{font:900 15px/1.05 Rubik,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;width:110px}
-.rls-links{display:flex;align-items:center;gap:4px;margin-left:auto}
-.rls-links a{color:rgba(255,255,255,.72);text-decoration:none;font-weight:600;font-size:15px;line-height:1;white-space:nowrap;padding:10px 12px;border-radius:999px;transition:background .15s,color .15s}
+.rls-nav{position:sticky;top:0;z-index:50;height:56px;background:rgba(15,8,28,.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);font-family:Barlow,system-ui,sans-serif}
+.rls-in{max-width:1200px;height:100%;margin:0 auto;padding:0 20px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+.rls-brand{display:flex;align-items:center;gap:9px;justify-self:start;color:#fff;text-decoration:none}
+.rls-brand img{width:32px;height:32px;object-fit:contain;display:block}
+.rls-brand span{font:900 12.5px/1.05 Rubik,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;width:92px}
+.rls-links{display:flex;align-items:center;gap:2px;padding:3px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.rls-links a{color:rgba(255,255,255,.72);text-decoration:none;font-weight:600;font-size:14px;line-height:1;white-space:nowrap;padding:8px 13px;border-radius:999px;transition:background .15s,color .15s}
 .rls-links a:hover{color:#fff;background:rgba(255,255,255,.07)}
 .rls-links a.on{color:#fff;background:rgba(255,63,164,.18)}
-.rls-dc{flex:none;display:inline-flex;align-items:center;height:42px;padding:0 20px;border-radius:999px;background:linear-gradient(90deg,#ff3fa4,#ff7a59);color:#fff;font:700 15px Barlow,system-ui,sans-serif;text-decoration:none;white-space:nowrap;box-shadow:0 6px 20px rgba(255,63,164,.3)}
+.rls-dc{justify-self:end;display:inline-flex;align-items:center;height:36px;padding:0 18px;border-radius:999px;background:linear-gradient(90deg,#ff3fa4,#ff7a59);color:#fff;font:700 14px Barlow,system-ui,sans-serif;text-decoration:none;white-space:nowrap;box-shadow:0 4px 14px rgba(255,63,164,.28)}
 .rls-dc:hover{filter:brightness(1.08)}
-.rls-burger{display:none;width:44px;height:44px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.04);color:#fff;cursor:pointer;align-items:center;justify-content:center}
-.rls-burger svg{width:22px;height:22px}
-@media (max-width:1000px){
+.rls-burger{display:none;width:38px;height:38px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.04);color:#fff;cursor:pointer;align-items:center;justify-content:center}
+.rls-burger svg{width:20px;height:20px}
+@media (max-width:860px){
+  .rls-in{display:flex;gap:10px}
   .rls-burger{display:inline-flex}
-  .rls-dc{height:40px;padding:0 16px;margin-left:auto}
-  .rls-links{display:none;position:absolute;left:0;right:0;top:68px;flex-direction:column;align-items:stretch;gap:2px;margin:0;padding:10px 16px 16px;background:rgba(15,8,28,.97);border-bottom:1px solid rgba(255,255,255,.08)}
+  .rls-dc{height:34px;padding:0 14px;margin-left:auto}
+  .rls-links{display:none;position:absolute;left:0;right:0;top:56px;flex-direction:column;align-items:stretch;gap:2px;margin:0;padding:10px 16px 16px;border-radius:0;border:0;background:rgba(15,8,28,.97);border-bottom:1px solid rgba(255,255,255,.08)}
   .rls-nav.open .rls-links{display:flex}
-  .rls-links a{padding:14px 14px;font-size:16px;border-radius:12px}
+  .rls-links a{padding:14px;font-size:16px;border-radius:12px}
 }
-@media (max-width:420px){.rls-brand span{display:none}.rls-in{gap:12px;padding:0 16px}}
+@media (max-width:420px){.rls-brand span{display:none}.rls-in{padding:0 16px}}
 
 .rls-foot{border-top:1px solid rgba(255,255,255,.08);font-family:Barlow,system-ui,sans-serif;margin-top:40px}
 .rls-foot .rls-in{height:auto;flex-wrap:wrap;justify-content:space-between;padding-top:28px;padding-bottom:28px;gap:14px 24px;color:rgba(255,255,255,.55);font-size:14px}

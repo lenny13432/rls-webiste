@@ -8,14 +8,103 @@
 <link rel="icon" href="../logo.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="../bewerbung.css">
-<style>[hidden]{display:none!important}</style>
+<style>
+[hidden]{display:none!important}
+/* Leiste im Panel: auch am Handy sichtbar */
+@media (max-width:820px){
+  body.is-admin nav.top .wrap{flex-wrap:wrap;row-gap:4px}
+  body.is-admin nav.top .links:not([hidden]){display:flex;order:3;width:100%;overflow-x:auto;gap:18px;padding-bottom:6px;scrollbar-width:none}
+  body.is-admin nav.top .links a{white-space:nowrap}
+}
+/* Dev-Panel */
+.dev-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:14px}
+.dev-head .row{display:flex;gap:8px}
+.dev-tabs{display:flex;gap:4px;margin:18px 0 16px;padding:4px;background:var(--night-2);border:1px solid var(--line);border-radius:999px;width:max-content;max-width:100%}
+.dev-tabs a{padding:8px 18px;border-radius:999px;text-decoration:none;font-weight:700;font-size:14px;color:var(--muted)}
+.dev-tabs a.on{background:linear-gradient(90deg,var(--pink),var(--sunset));color:#1a0616}
+.dev-stats{display:grid;grid-template-columns:repeat(4,1fr) 1.6fr;gap:10px;margin-bottom:18px}
+.dev-stats>div{background:var(--night-2);border:1px solid var(--line);border-radius:16px;padding:14px 16px;position:relative;overflow:hidden}
+.dev-stats b{display:block;font:900 28px/1 var(--heavy)}
+.dev-stats span{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.dev-stats .late b{color:var(--bad)}
+.dev-pct i{position:absolute;left:0;bottom:0;height:4px;width:var(--p);background:linear-gradient(90deg,var(--violet),var(--pink))}
+@media (max-width:760px){.dev-stats{grid-template-columns:1fr 1fr}.dev-pct{grid-column:1/-1}}
+.dev-empty{display:grid;gap:12px;justify-items:center;margin-bottom:18px}
+.dev-empty p{margin:0;max-width:520px}
+.dev-filter select{font:600 14px var(--body);color:var(--fg);background:var(--night-2);border:1px solid var(--line);border-radius:999px;padding:9px 14px;max-width:100%}
+.board{display:grid;grid-template-columns:repeat(5,minmax(200px,1fr));gap:12px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}
+.col{background:#ffffff06;border:1px solid var(--line);border-radius:16px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:260px;scroll-snap-align:start;transition:border-color .15s,background .15s}
+.col.over{border-color:var(--pink);background:#ff4fb30d}
+.col header{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 6px;font-size:14px}
+.col header span{font:600 12px var(--mono);color:var(--muted);background:#ffffff0d;border-radius:99px;padding:2px 9px}
+.col-idee header b{color:#c9a8ff}.col-todo header b{color:var(--info)}.col-arbeit header b{color:var(--warn)}.col-test header b{color:var(--sunset)}.col-fertig header b{color:var(--ok)}
+.col-body{display:grid;gap:8px;align-content:start;flex:1}
+.col-empty{margin:0;padding:18px 0;text-align:center;font-size:13px;color:#b5a8d877;border:1px dashed var(--line);border-radius:12px}
+.col-add{background:none;border:0;color:var(--muted);font:600 13px var(--body);padding:8px;border-radius:10px;cursor:pointer;text-align:left}
+.col-add:hover{background:#ffffff0a;color:var(--fg)}
+.tcard{background:var(--night-2);border:1px solid var(--line);border-left:3px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;transition:border-color .15s,transform .15s}
+.tcard:hover{border-color:#ff4fb388;transform:translateY(-1px)}
+.tcard.drag{opacity:.4}
+.tcard.pr-hoch{border-left-color:var(--warn)}.tcard.pr-kritisch{border-left-color:var(--bad)}.tcard.pr-niedrig{border-left-color:#ffffff22}.tcard.pr-normal{border-left-color:var(--violet)}
+.tc-top{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.tag{font:700 10.5px var(--body);letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:99px;background:#ffffff10;color:var(--muted)}
+.prio{font:700 10.5px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--warn)}
+.pr-kritisch .prio{color:var(--bad)}
+.tid{margin-left:auto;font:500 11px var(--mono);color:#b5a8d899}
+.tcard h4{margin:0;font:600 15px/1.35 var(--body)}
+.tcard.pr-niedrig h4{color:#e6ddff}
+.col-fertig .tcard h4{text-decoration:line-through;text-decoration-color:#ffffff44;color:var(--muted)}
+.tc-ms{margin-top:6px;font-size:12px;color:#c9a8ff}
+.tc-foot{display:flex;align-items:center;gap:8px;margin-top:10px}
+.ava{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 11px var(--body);background:linear-gradient(135deg,var(--violet),var(--pink));color:#fff}
+.ava.none{background:#ffffff10;color:var(--muted)}
+.due{font:500 12px var(--mono);color:var(--muted)}
+.due.late{color:var(--bad)}
+.mv{margin-left:auto;display:flex;gap:4px}
+.mv button{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);background:#ffffff08;color:var(--fg);cursor:pointer;font-size:16px;line-height:1}
+.mv button:hover{border-color:var(--pink)}
+/* Roadmap */
+.roadmap{list-style:none;margin:6px 0 0;padding:0 0 0 28px;position:relative;display:grid;gap:16px;max-width:860px}
+.roadmap::before{content:"";position:absolute;left:9px;top:10px;bottom:10px;width:2px;background:linear-gradient(var(--pink),var(--violet),#ffffff11)}
+.rm{position:relative}
+.rm-dot{position:absolute;left:-28px;top:22px;width:20px;height:20px;border-radius:50%;background:var(--night);border:3px solid var(--line)}
+.rm-arbeit .rm-dot{border-color:var(--warn);box-shadow:0 0 0 5px #ffc04f22}
+.rm-fertig .rm-dot{border-color:var(--ok);background:var(--ok)}
+.rm-card{padding:18px 20px;display:grid;gap:10px}
+.rm-card h3{font-size:26px}
+.rm-card p{margin:0}
+.rm-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rm-top .btn{margin-left:auto}
+.rm-when{font:600 13px var(--mono);color:var(--pink)}
+.ms-geplant{color:var(--info);background:#7aa8ff1c}.ms-arbeit{color:var(--warn);background:#ffc04f1c}.ms-fertig{color:var(--ok);background:#4fe0a01c}
+.rm-bar{height:8px;border-radius:99px;background:#ffffff10;overflow:hidden}
+.rm-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--pink));border-radius:inherit}
+.rm-fertig .rm-bar i{background:var(--ok)}
+.rm-count{font-size:13px;color:var(--muted)}
+.rm-tasks{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.rm-tasks li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:10px;cursor:pointer;font-size:15px}
+.rm-tasks li:hover{background:#ffffff08}
+.rm-tasks small{margin-left:auto;color:var(--muted);font-size:12px;white-space:nowrap}
+.sdot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--info)}
+.s-idee .sdot{background:#c9a8ff}.s-arbeit .sdot{background:var(--warn)}.s-test .sdot{background:var(--sunset)}.s-fertig .sdot{background:var(--ok)}
+.s-fertig{color:var(--muted);text-decoration:line-through;text-decoration-color:#ffffff33}
+.rm-card>.btn{justify-self:start}
+/* Dialog */
+.dlg{width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 24px);border:1px solid var(--line);border-radius:20px;background:var(--night-2);color:var(--fg);padding:22px;box-shadow:0 30px 80px #000a}
+.dlg::backdrop{background:#07031399;backdrop-filter:blur(4px)}
+.dlg-head{display:flex;justify-content:space-between;align-items:center}
+.dlg-head h2{font-size:26px}
+.dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}
+.dlg [data-del][data-armed="1"]{border-color:var(--bad);color:var(--bad)}
+.dlg .icon-btn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:#ffffff08;color:var(--fg);font-size:20px;cursor:pointer}
+</style>
 </head>
 <body class="is-admin">
 <nav class="top"><div class="wrap">
   <a class="brand" href="#liste"><img src="../logo.png" alt=""><span>Team-Panel</span></a>
   <a class="btn btn-ghost sm" href="../" style="margin-right:auto">← Zur Website</a>
   <div class="links" id="navLinks" hidden>
-    <a href="#liste" data-nav="liste">Bewerbungen</a><a href="#team" data-nav="team">Team</a><a href="#einstellungen" data-nav="einstellungen" id="navSettings">Einstellungen</a><a href="#konto" data-nav="konto">Mein Konto</a>
+    <a href="#liste" data-nav="liste">Bewerbungen</a><a href="#team" data-nav="team">Team</a><a href="#dev" data-nav="dev">Dev</a><a href="#einstellungen" data-nav="einstellungen" id="navSettings">Einstellungen</a><a href="#konto" data-nav="konto">Mein Konto</a>
   </div>
   <div class="nav-out" id="navOut" hidden><span id="whoami"></span><button class="btn btn-ghost sm" id="logout">Abmelden</button></div>
 </div></nav>
@@ -117,6 +206,8 @@ function route() {
   const m = h.match(/^bewerbung-(\d+)$/);
   if (m) return showDetail(+m[1]);
   if (h === 'team') return showTeam();
+  if (h === 'dev') return showDev('board');
+  if (h === 'roadmap') return showDev('roadmap');
   if (h === 'einstellungen' && me.role === 'owner') return showSettings();
   if (h === 'konto') return showAccount();
   return showList();
@@ -304,6 +395,225 @@ function showAccount() {
     try { await api('admin/password', { method: 'POST', body: { old: $('pw_old').value, new: $('pw_new').value } }); $('kMsg').innerHTML = alertBox('ok', 'Passwort geändert. Andere angemeldete Geräte wurden abgemeldet.'); $('pwForm').reset(); }
     catch (err) { $('kMsg').innerHTML = alertBox('bad', err.message); }
   };
+}
+
+// ============================================================ Dev-Panel: Board & Roadmap
+const DEV = {
+  ST: { idee: 'Ideen', todo: 'To-do', arbeit: 'In Arbeit', test: 'Testen', fertig: 'Fertig' },
+  PR: { niedrig: 'Niedrig', normal: 'Normal', hoch: 'Hoch', kritisch: 'Kritisch' },
+  MS: { geplant: 'Geplant', arbeit: 'In Arbeit', fertig: 'Fertig' },
+  data: null, f: { q: '', cat: '', who: '', ms: '' }
+};
+const today = () => new Date().toISOString().slice(0, 10);
+const dShort = (d) => d ? new Date(d + 'T12:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
+const initials = (n) => String(n || '?').slice(0, 2).toUpperCase();
+
+async function loadDev() { DEV.data = await api('admin/dev'); return DEV.data; }
+
+async function showDev(tab) {
+  setNav('dev');
+  try { await loadDev(); } catch (e) { if (e.message !== 'login') app.innerHTML = `<div class="wrap admin-main">${alertBox('bad', e.message)}</div>`; return; }
+  const d = DEV.data, T = d.tasks;
+  const n = (s) => T.filter((t) => s.includes(t.status)).length;
+  const done = n(['fertig']), all = T.length, pct = all ? Math.round(done / all * 100) : 0;
+  const late = T.filter((t) => t.due && t.due < today() && t.status !== 'fertig').length;
+  app.innerHTML = `<div class="wrap admin-main dev">
+    <div class="admin-head dev-head"><h1><span class="script">Was wird gebaut?</span>Dev-Panel</h1>
+      <div class="row"><button class="btn btn-ghost sm" id="addMs">+ Meilenstein</button><button class="btn btn-pink sm" id="addTask">+ Aufgabe</button></div></div>
+    <div class="dev-tabs"><a href="#dev" class="${tab === 'board' ? 'on' : ''}">To-do-Board</a><a href="#roadmap" class="${tab === 'roadmap' ? 'on' : ''}">Roadmap</a></div>
+    <div class="dev-stats">
+      <div><b>${n(['idee', 'todo'])}</b><span>Offen</span></div>
+      <div><b>${n(['arbeit', 'test'])}</b><span>In Arbeit</span></div>
+      <div><b>${done}</b><span>Erledigt</span></div>
+      <div class="${late ? 'late' : ''}"><b>${late}</b><span>Überfällig</span></div>
+      <div class="dev-pct"><b>${pct}%</b><span>Fortschritt gesamt</span><i style="--p:${pct}%"></i></div>
+    </div>
+    ${!all && !d.milestones.length ? `<div class="empty dev-empty"><p>Noch nichts geplant. Leg los mit <b>+ Aufgabe</b> oder lade eine Beispiel-Roadmap für einen FiveM-Server, die ihr dann anpasst.</p><button class="btn btn-ghost sm" id="seedDev">Beispiel-Roadmap laden</button></div>` : ''}
+    <div id="devView"></div></div>`;
+  $('addTask').onclick = () => taskDialog();
+  $('addMs').onclick = () => msDialog();
+  if ($('seedDev')) $('seedDev').onclick = seedDev;
+  tab === 'roadmap' ? renderRoadmap() : renderBoard();
+}
+
+function filteredTasks() {
+  const f = DEV.f, q = f.q.toLowerCase();
+  return DEV.data.tasks.filter((t) =>
+    (!q || (t.title + ' ' + (t.body || '') + ' #' + t.id).toLowerCase().includes(q)) &&
+    (!f.cat || t.category === f.cat) &&
+    (!f.who || (f.who === 'me' ? t.assignee_id === me.id : f.who === 'none' ? !t.assignee_id : String(t.assignee_id) === f.who)) &&
+    (!f.ms || (f.ms === 'none' ? !t.milestone_id : String(t.milestone_id) === f.ms)));
+}
+
+function card(t) {
+  const ms = DEV.data.milestones.find((m) => m.id === t.milestone_id);
+  const late = t.due && t.due < today() && t.status !== 'fertig';
+  const keys = Object.keys(DEV.ST), i = keys.indexOf(t.status);
+  return `<article class="tcard pr-${t.priority}" draggable="true" data-id="${t.id}">
+    <div class="tc-top"><span class="tag">${esc(t.category)}</span>${t.priority === 'hoch' || t.priority === 'kritisch' ? `<span class="prio">${DEV.PR[t.priority]}</span>` : ''}<span class="tid">#${t.id}</span></div>
+    <h4>${esc(t.title)}</h4>
+    ${ms ? `<div class="tc-ms">◆ ${esc(ms.title)}</div>` : ''}
+    <div class="tc-foot">
+      ${t.assignee_name ? `<span class="ava" title="${esc(t.assignee_name)}">${esc(initials(t.assignee_name))}</span>` : '<span class="ava none" title="Niemand zugewiesen">?</span>'}
+      ${t.due ? `<span class="due${late ? ' late' : ''}">${late ? 'überfällig ' : ''}${dShort(t.due)}</span>` : ''}
+      <span class="mv">${i > 0 ? `<button data-mv="${keys[i - 1]}" title="Zurück" aria-label="Eine Spalte zurück">‹</button>` : ''}${i < keys.length - 1 ? `<button data-mv="${keys[i + 1]}" title="Weiter" aria-label="Eine Spalte weiter">›</button>` : ''}</span>
+    </div></article>`;
+}
+
+function filterBar() {
+  const d = DEV.data, f = DEV.f;
+  return `<div class="toolbar dev-filter">
+    <input id="dq" type="search" placeholder="Aufgaben durchsuchen" value="${esc(f.q)}">
+    <select id="dcat"><option value="">Alle Bereiche</option>${d.categories.map((c) => `<option${f.cat === c ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select>
+    <select id="dwho"><option value="">Alle Personen</option><option value="me"${f.who === 'me' ? ' selected' : ''}>Nur meine</option><option value="none"${f.who === 'none' ? ' selected' : ''}>Niemand zugewiesen</option>${d.team.map((p) => `<option value="${p.id}"${f.who === String(p.id) ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>
+    <select id="dms"><option value="">Alle Meilensteine</option><option value="none"${f.ms === 'none' ? ' selected' : ''}>Ohne Meilenstein</option>${d.milestones.map((m) => `<option value="${m.id}"${f.ms === String(m.id) ? ' selected' : ''}>${esc(m.title)}</option>`).join('')}</select>
+  </div>`;
+}
+
+function renderBoard() {
+  const tasks = filteredTasks();
+  const prioRank = { kritisch: 0, hoch: 1, normal: 2, niedrig: 3 };
+  $('devView').innerHTML = filterBar() + `<div class="board">${Object.entries(DEV.ST).map(([k, label]) => {
+    const col = tasks.filter((t) => t.status === k).sort((a, b) => prioRank[a.priority] - prioRank[b.priority] || (a.due || '9') .localeCompare(b.due || '9'));
+    return `<section class="col col-${k}" data-col="${k}"><header><b>${label}</b><span>${col.length}</span></header>
+      <div class="col-body">${col.map(card).join('') || '<p class="col-empty">Hierher ziehen</p>'}</div>
+      ${k !== 'fertig' ? `<button class="col-add" data-add="${k}">+ Aufgabe</button>` : ''}</section>`;
+  }).join('')}</div>`;
+  let deb;
+  $('dq').oninput = () => { clearTimeout(deb); deb = setTimeout(() => { DEV.f.q = $('dq').value; renderBoard(); $('dq').focus(); $('dq').setSelectionRange(9e3, 9e3); }, 200); };
+  ['dcat', 'dwho', 'dms'].forEach((id, i) => ($(id).onchange = () => { DEV.f[['cat', 'who', 'ms'][i]] = $(id).value; renderBoard(); }));
+  const board = $('devView').querySelector('.board');
+  board.onclick = (e) => {
+    const mv = e.target.closest('[data-mv]');
+    if (mv) { e.stopPropagation(); return moveTask(+mv.closest('.tcard').dataset.id, mv.dataset.mv); }
+    const add = e.target.closest('[data-add]'); if (add) return taskDialog(null, add.dataset.add);
+    const c = e.target.closest('.tcard'); if (c) taskDialog(DEV.data.tasks.find((t) => t.id === +c.dataset.id));
+  };
+  board.addEventListener('dragstart', (e) => { const c = e.target.closest('.tcard'); if (!c) return; e.dataTransfer.setData('text/plain', c.dataset.id); c.classList.add('drag'); });
+  board.addEventListener('dragend', (e) => e.target.closest?.('.tcard')?.classList.remove('drag'));
+  board.querySelectorAll('.col').forEach((col) => {
+    col.addEventListener('dragover', (e) => { e.preventDefault(); col.classList.add('over'); });
+    col.addEventListener('dragleave', (e) => { if (!col.contains(e.relatedTarget)) col.classList.remove('over'); });
+    col.addEventListener('drop', (e) => { e.preventDefault(); col.classList.remove('over'); const id = +e.dataTransfer.getData('text/plain'); if (id) moveTask(id, col.dataset.col); });
+  });
+}
+
+async function moveTask(id, status) {
+  const t = DEV.data.tasks.find((x) => x.id === id);
+  if (!t || t.status === status) return;
+  const prev = t.status; t.status = status; renderBoard();
+  try { await api('admin/dev/tasks/' + id, { method: 'PUT', body: { status } }); toast(`„${t.title}“ → ${DEV.ST[status]}`); }
+  catch (e) { t.status = prev; renderBoard(); toast(e.message); }
+}
+
+function renderRoadmap() {
+  const d = DEV.data;
+  const loose = d.tasks.filter((t) => !t.milestone_id);
+  $('devView').innerHTML = !d.milestones.length
+    ? `<div class="empty">Noch keine Meilensteine. Mit <b>+ Meilenstein</b> legst du z. B. „Closed Beta“ oder „Release“ an.</div>`
+    : `<ol class="roadmap">${d.milestones.map((m) => {
+      const ts = d.tasks.filter((t) => t.milestone_id === m.id), dn = ts.filter((t) => t.status === 'fertig').length;
+      const p = ts.length ? Math.round(dn / ts.length * 100) : (m.status === 'fertig' ? 100 : 0);
+      return `<li class="rm rm-${m.status}">
+        <div class="rm-dot"></div>
+        <div class="card rm-card">
+          <div class="rm-top"><span class="rm-when">${esc(m.target || 'Ohne Termin')}</span><span class="pill ms-${m.status}">${DEV.MS[m.status]}</span><button class="btn btn-ghost sm" data-ems="${m.id}">Bearbeiten</button></div>
+          <h3>${esc(m.title)}</h3>
+          ${m.body ? `<p class="muted">${nl(m.body)}</p>` : ''}
+          <div class="rm-bar"><i style="width:${p}%"></i></div>
+          <p class="rm-count">${dn} von ${ts.length} Aufgaben erledigt · ${p}%</p>
+          ${ts.length ? `<ul class="rm-tasks">${ts.map((t) => `<li data-tid="${t.id}" class="s-${t.status}"><span class="sdot"></span>${esc(t.title)}<small>${DEV.ST[t.status]}${t.assignee_name ? ' · ' + esc(t.assignee_name) : ''}</small></li>`).join('')}</ul>` : ''}
+          <button class="btn btn-ghost sm" data-addto="${m.id}">+ Aufgabe für diesen Meilenstein</button>
+        </div></li>`;
+    }).join('')}</ol>
+    ${loose.length ? `<p class="muted" style="margin-top:20px">${loose.length} Aufgabe${loose.length === 1 ? '' : 'n'} ohne Meilenstein, zu finden im To-do-Board.</p>` : ''}`;
+  $('devView').onclick = (e) => {
+    const em = e.target.closest('[data-ems]'); if (em) return msDialog(d.milestones.find((m) => m.id === +em.dataset.ems));
+    const at = e.target.closest('[data-addto]'); if (at) return taskDialog(null, 'todo', +at.dataset.addto);
+    const li = e.target.closest('[data-tid]'); if (li) taskDialog(d.tasks.find((t) => t.id === +li.dataset.tid));
+  };
+}
+
+function openDialog(html, onSubmit, onDelete) {
+  const dlg = document.createElement('dialog'); dlg.className = 'dlg';
+  dlg.innerHTML = html; document.body.appendChild(dlg); dlg.showModal();
+  dlg.addEventListener('close', () => dlg.remove());
+  dlg.querySelector('[data-close]').onclick = () => dlg.close();
+  dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
+  const form = dlg.querySelector('form'), msg = dlg.querySelector('.dlg-msg');
+  form.onsubmit = async (e) => { e.preventDefault(); try { await onSubmit(new FormData(form)); dlg.close(); } catch (err) { msg.innerHTML = alertBox('bad', err.message); } };
+  const del = dlg.querySelector('[data-del]');
+  if (del) del.onclick = async () => { if (del.dataset.armed !== '1') { del.dataset.armed = '1'; del.textContent = 'Wirklich löschen?'; return; } try { await onDelete(); dlg.close(); } catch (err) { msg.innerHTML = alertBox('bad', err.message); } };
+  dlg.querySelector('input,textarea')?.focus();
+}
+const opts = (obj, sel) => Object.entries(obj).map(([v, l]) => `<option value="${esc(v)}"${String(sel) === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('');
+
+function taskDialog(t, status = 'todo', msId = '') {
+  const d = DEV.data, edit = !!t; t = t || { status, priority: 'normal', category: 'Script', milestone_id: msId, assignee_id: '' };
+  openDialog(`<form class="form" style="gap:14px">
+    <div class="dlg-head"><h2>${edit ? 'Aufgabe #' + t.id : 'Neue Aufgabe'}</h2><button type="button" class="icon-btn" data-close aria-label="Schließen">×</button></div>
+    <div class="dlg-msg"></div>
+    <label class="field"><span>Titel</span><input name="title" maxlength="120" required value="${esc(t.title || '')}" placeholder="z. B. Tankstellen-Script einbauen"></label>
+    <label class="field"><span>Beschreibung <small>(optional)</small></span><textarea name="body" maxlength="4000" style="min-height:100px" placeholder="Was genau muss gemacht werden? Links, Ressourcen-Namen, Bugs…">${esc(t.body || '')}</textarea></label>
+    <div class="grid2">
+      <label class="field"><span>Status</span><select name="status">${opts(DEV.ST, t.status)}</select></label>
+      <label class="field"><span>Priorität</span><select name="priority">${opts(DEV.PR, t.priority)}</select></label>
+      <label class="field"><span>Bereich</span><select name="category">${opts(Object.fromEntries(d.categories.map((c) => [c, c])), t.category)}</select></label>
+      <label class="field"><span>Zuständig</span><select name="assignee_id"><option value="">Niemand</option>${opts(Object.fromEntries(d.team.map((p) => [p.id, p.name])), t.assignee_id)}</select></label>
+      <label class="field"><span>Meilenstein</span><select name="milestone_id"><option value="">Keiner</option>${opts(Object.fromEntries(d.milestones.map((m) => [m.id, m.title])), t.milestone_id)}</select></label>
+      <label class="field"><span>Fällig bis <small>(optional)</small></span><input name="due" type="date" value="${esc(t.due || '')}"></label>
+    </div>
+    ${edit ? `<p class="muted" style="margin:0;font-size:13px">Erstellt von ${esc(t.created_by_name || '–')} am ${fmt(t.created_at)} · zuletzt geändert ${fmt(t.updated_at)}</p>` : ''}
+    <div class="dlg-foot">${edit ? '<button type="button" class="btn btn-ghost sm" data-del>Löschen</button>' : '<span></span>'}<button class="btn btn-pink" type="submit">${edit ? 'Speichern' : 'Aufgabe anlegen'}</button></div>
+  </form>`, async (fd) => {
+    const body = Object.fromEntries(fd);
+    if (edit) await api('admin/dev/tasks/' + t.id, { method: 'PUT', body }); else await api('admin/dev/tasks', { method: 'POST', body });
+    toast(edit ? 'Gespeichert.' : 'Aufgabe angelegt.'); route();
+  }, async () => { await api('admin/dev/tasks/' + t.id, { method: 'DELETE' }); toast('Aufgabe gelöscht.'); route(); });
+}
+
+function msDialog(m) {
+  const edit = !!m; m = m || { status: 'geplant' };
+  openDialog(`<form class="form" style="gap:14px">
+    <div class="dlg-head"><h2>${edit ? 'Meilenstein bearbeiten' : 'Neuer Meilenstein'}</h2><button type="button" class="icon-btn" data-close aria-label="Schließen">×</button></div>
+    <div class="dlg-msg"></div>
+    <label class="field"><span>Name</span><input name="title" maxlength="80" required value="${esc(m.title || '')}" placeholder="z. B. Closed Beta"></label>
+    <div class="grid2">
+      <label class="field"><span>Wann? <small>(frei, z. B. „Januar 2027“)</small></span><input name="target" maxlength="40" value="${esc(m.target || '')}"></label>
+      <label class="field"><span>Status</span><select name="status">${opts(DEV.MS, m.status)}</select></label>
+    </div>
+    <label class="field"><span>Beschreibung <small>(optional)</small></span><textarea name="body" maxlength="2000" style="min-height:90px">${esc(m.body || '')}</textarea></label>
+    <label class="field"><span>Reihenfolge <small>(kleinere Zahl = weiter oben)</small></span><input name="sort" type="number" value="${esc(m.sort ?? '')}" style="max-width:140px"></label>
+    <div class="dlg-foot">${edit && me.role === 'owner' ? '<button type="button" class="btn btn-ghost sm" data-del>Löschen</button>' : '<span></span>'}<button class="btn btn-pink" type="submit">${edit ? 'Speichern' : 'Meilenstein anlegen'}</button></div>
+  </form>`, async (fd) => {
+    const body = Object.fromEntries(fd);
+    if (edit) await api('admin/dev/milestones/' + m.id, { method: 'PUT', body }); else await api('admin/dev/milestones', { method: 'POST', body });
+    toast('Gespeichert.'); if (!edit) location.hash = '#roadmap'; route();
+  }, async () => { await api('admin/dev/milestones/' + m.id, { method: 'DELETE' }); toast('Meilenstein gelöscht. Die Aufgaben bleiben erhalten.'); route(); });
+}
+
+async function seedDev() {
+  const b = $('seedDev'); b.disabled = true; b.textContent = 'Wird angelegt…';
+  const plan = [
+    ['Server-Grundlage', 'November 2026', 'arbeit', 'ESX, Datenbank, txAdmin und Sicherheit stehen.', [
+      ['ESX-Grundgerüst und Datenbank einrichten', 'Server', 'hoch', 'fertig'], ['txAdmin: Rechte und Whitelist für das Team', 'Server', 'normal', 'arbeit'],
+      ['Anti-Cheat einbauen und testen', 'Server', 'kritisch', 'todo'], ['Regelwerk auf der Website fertig schreiben', 'Website', 'normal', 'fertig']]],
+    ['Jobs & Fraktionen', 'Dezember 2026', 'geplant', 'Staatliche Fraktionen und das Gründungssystem ingame.', [
+      ['LSPD: Dienst, Fahrzeuge, MDT', 'Fraktionen', 'hoch', 'todo'], ['EMS: Wiederbelebung und Krankenhaus', 'Fraktionen', 'hoch', 'todo'],
+      ['Fraktion gründen: Bankkredit und Gebäude beim Rathaus beantragen', 'Script', 'normal', 'idee'], ['Mechaniker-Job mit Tuning', 'Script', 'normal', 'idee']]],
+    ['Closed Beta', 'Januar 2027', 'geplant', 'Ausgewählte Spieler testen, wir sammeln Bugs.', [
+      ['Beta-Tester im Discord auswählen', 'Discord', 'normal', 'idee'], ['Bug-Report-Kanal und Vorlage', 'Discord', 'niedrig', 'todo'], ['Performance-Test mit 50+ Spielern', 'Server', 'hoch', 'idee']]],
+    ['Release', 'Februar 2027', 'geplant', 'Server geht öffentlich online.', [
+      ['Launcher: finale Version veröffentlichen', 'Launcher', 'hoch', 'todo'], ['Countdown auf der Website auf das Release-Datum stellen', 'Website', 'normal', 'idee'], ['Release-Trailer', 'Sonstiges', 'normal', 'idee']]]
+  ];
+  try {
+    for (let i = 0; i < plan.length; i++) {
+      const [title, target, status, body, tasks] = plan[i];
+      const ms = await api('admin/dev/milestones', { method: 'POST', body: { title, target, status, body, sort: i + 1 } });
+      for (const [tt, category, priority, st] of tasks) await api('admin/dev/tasks', { method: 'POST', body: { title: tt, category, priority, status: st, milestone_id: ms.id } });
+    }
+    toast('Beispiel-Roadmap angelegt. Passt sie einfach an.'); location.hash = '#roadmap'; route();
+  } catch (e) { toast(e.message); b.disabled = false; b.textContent = 'Beispiel-Roadmap laden'; }
 }
 
 boot();
