@@ -155,14 +155,16 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--pink);color:#1a0616;padding:10px 18px;border-radius:99px;font-weight:700;font-size:14px;z-index:20}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
 </style>
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
 
-<nav><div class="wrap">
-  <a class="brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
-  <div class="links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a class="on" href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
-  <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
-</div></nav>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
 
 <header class="hero"><div class="wrap">
   <div>
@@ -278,9 +280,9 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
   <a class="btn" href="#" data-dl target="_blank" rel="noopener">Jetzt herunterladen</a>
 </div></div>
 
-<footer><div class="wrap">
-  <span>© 2026 Real Life Southland</span>
-  <span>Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
 </div></footer>
 
 <div class="toast" id="toast" hidden></div>
@@ -307,5 +309,6 @@ document.querySelectorAll('[data-dl]').forEach(a=>{
   }
 });
 </script>
+<script src="site.js"></script>
 </body>
 </html>

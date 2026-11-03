@@ -8,13 +8,15 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="bewerbung.css">
 <style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="site.css">
 </head>
 <body>
-<nav class="top"><div class="wrap">
-  <a class="brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
-  <div class="links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html" class="on">Team-Bewerbung</a></div>
-  <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
-</div></nav>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
 
 <main>
 <div id="v-apply">
@@ -112,7 +114,10 @@
 </div>
 </main>
 
-<footer><div class="wrap"><span>© 2026 Real Life Southland</span><span>Nicht mit Rockstar Games oder Cfx.re verbunden.</span></div></footer>
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -171,5 +176,6 @@ $('copyCode').onclick = () => {
   try { navigator.clipboard.writeText(t).then(() => ($('copyCode').textContent = 'Kopiert!'), () => {}); } catch {}
 };
 </script>
+<script src="site.js"></script>
 </body>
 </html>
