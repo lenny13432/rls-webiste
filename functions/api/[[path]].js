@@ -978,6 +978,81 @@ async function deleteDoc({ request, env, params }) {
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------- Launcher-Steuerung
+// Der Launcher lädt GET /api/launcher und überschreibt damit seine eingebauten Werte.
+// Nur Felder, die hier gesetzt sind, werden überschrieben.
+const NEWS_COLORS = { 'Ankündigung': '#ff4fb3', 'Update': '#7aa8ff', 'Event': '#ffc04f', 'Team': '#b47cff', 'Changelog': '#4fe0a0', 'Release': '#ff7a45', 'Launcher': '#4fe0a0', 'Wartung': '#ff5a6e' };
+const NOTICE_STYLES = ['info', 'warn', 'bad', 'ok'];
+const LAUNCHER_IMAGES = ['', 'gallery/01-late-night-ride.jpg', 'gallery/02-sunset.jpg', 'gallery/03-low-and-slow.jpg', 'gallery/04-neon-glow.jpg', 'gallery/05-street-livery.jpg'];
+const LAUNCHER_DEFAULT = {
+  locked: true, releaseDate: null, serverCode: 'qqabgvz', connect: '', discord: 'https://discord.gg/q9kBzXP9va', website: '',
+  notice: { text: '', style: 'info', link: '' }, newsSource: 'launcher', news: [], updated_at: null, updated_by: null
+};
+async function getLauncherSettings(db) {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'launcher'").first();
+  let s = {}; try { s = row ? JSON.parse(row.value) : {}; } catch {}
+  return { ...LAUNCHER_DEFAULT, ...s, notice: { ...LAUNCHER_DEFAULT.notice, ...(s.notice || {}) } };
+}
+const deDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
+
+async function getPublicLauncher({ env, url }) {
+  const db = env.DB; await ensureSchema(db);
+  const s = await getLauncherSettings(db);
+  const out = { locked: !!s.locked, releaseDate: s.releaseDate || null, serverCode: s.serverCode, connect: s.connect || null, discord: s.discord };
+  if (s.website) out.website = s.website;
+  else out.website = url.origin + '/';
+  out.notice = s.notice.text ? { text: s.notice.text, style: s.notice.style, link: s.notice.link || null } : null;
+  if (s.newsSource === 'website') {
+    const rows = await all(db.prepare('SELECT title, body, tag, created_at FROM news WHERE published = 1 ORDER BY pinned DESC, id DESC LIMIT 6'));
+    if (rows.length) out.news = rows.map((n, i) => ({
+      tag: n.tag, color: NEWS_COLORS[n.tag] || '#ff4fb3', date: deDate(n.created_at), title: n.title,
+      text: String(n.body || '').split('\n').map((l) => l.replace(/^\s*[-*]\s+/, '• ').trim()).filter(Boolean).join('  '),
+      ...(i === 0 ? { image: 'gallery/01-late-night-ride.jpg' } : {})
+    }));
+  } else if (s.news.length) out.news = s.news;
+  return new Response(JSON.stringify(out, null, 2), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' } });
+}
+
+async function getLauncherAdmin({ request, env }) {
+  await requireAdmin(request, env);
+  const s = await getLauncherSettings(env.DB);
+  let by = null;
+  if (s.updated_by) by = (await env.DB.prepare('SELECT name FROM admins WHERE id = ?').bind(s.updated_by).first())?.name || null;
+  return json({ settings: s, updated_by_name: by, images: LAUNCHER_IMAGES, tags: Object.keys(NEWS_COLORS), colors: NEWS_COLORS });
+}
+
+async function saveLauncher({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request), old = await getLauncherSettings(db);
+  const urlOk = (v) => { v = str(v, 300); if (v && !/^https:\/\/\S+$/.test(v)) throw new HttpError('Links müssen mit https:// anfangen.'); return v; };
+  let releaseDate = null;
+  if (b.releaseDate) { const d = new Date(b.releaseDate); if (isNaN(d)) throw new HttpError('Das Release-Datum ist ungültig.'); releaseDate = d.toISOString(); }
+  const news = (Array.isArray(b.news) ? b.news : []).slice(0, 12).map((n) => {
+    const tag = str(n.tag, 30) || 'Ankündigung';
+    const item = { tag, color: /^#[0-9a-f]{6}$/i.test(n.color || '') ? n.color : (NEWS_COLORS[tag] || '#ff4fb3'), date: str(n.date, 30), title: str(n.title, 120), text: str(n.text, 1500) };
+    if (LAUNCHER_IMAGES.includes(n.image) && n.image) item.image = n.image;
+    return item;
+  }).filter((n) => n.title);
+  const s = {
+    locked: !!b.locked, releaseDate,
+    serverCode: str(b.serverCode, 20).replace(/[^a-z0-9]/gi, '') || old.serverCode,
+    connect: str(b.connect, 80), discord: urlOk(b.discord), website: urlOk(b.website),
+    notice: { text: str(b.notice?.text, 200), style: pick(b.notice?.style, NOTICE_STYLES, 'info'), link: urlOk(b.notice?.link) },
+    newsSource: b.newsSource === 'website' ? 'website' : 'launcher', news,
+    updated_at: now(), updated_by: me.id
+  };
+  const changes = [];
+  if (s.locked !== old.locked) changes.push(s.locked ? 'Spielen gesperrt' : 'Spielen freigegeben');
+  if (s.releaseDate !== old.releaseDate) changes.push(s.releaseDate ? 'Release-Datum gesetzt' : 'Release-Datum entfernt');
+  if (s.notice.text !== old.notice.text) changes.push(s.notice.text ? 'Hinweis geändert' : 'Hinweis entfernt');
+  if (JSON.stringify(s.news) !== JSON.stringify(old.news) || s.newsSource !== old.newsSource) changes.push('News geändert');
+  await db.batch([
+    db.prepare("INSERT INTO settings (key, value) VALUES ('launcher', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(s)),
+    act(db, me, 'team', 'launcher', null, `hat den Launcher geändert${changes.length ? ': ' + changes.join(', ') : ''}`)
+  ]);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -999,6 +1074,9 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['GET', 'launcher', getPublicLauncher],
+  ['GET', 'admin/launcher', getLauncherAdmin],
+  ['PUT', 'admin/launcher', saveLauncher],
   ['GET', 'admin/pulse', getPulse],
   ['GET', 'admin/search', getSearch],
   ['GET', 'admin/dashboard', getDashboard],

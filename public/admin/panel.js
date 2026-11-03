@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', team: 'Team', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', launcher: 'Launcher', team: 'Team', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 function setNav(view) {
   const logged = !!me;
   $('sb').hidden = !logged; $('mtop').hidden = !logged;
@@ -83,7 +83,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen' };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher' };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -182,6 +182,7 @@ function route(live) {
     case 'liste': return showList();
     case 'spieler': return showPlayers();
     case 'news': return showNews();
+    case 'launcher': return showLauncher();
     case 'team': return showTeam();
     case 'protokoll': return showLog();
     case 'einstellungen': return me.role === 'owner' ? showSettings() : showStart();
@@ -596,6 +597,137 @@ function showAccount() {
     catch (err) { $('kMsg').innerHTML = alertBox('bad', err.message); }
   };
 }
+
+// ============================================================ Launcher-Steuerung
+const LA = { s: null, meta: null, dirty: false };
+const NOTICE_LABEL = { info: 'Info', warn: 'Warnung', bad: 'Wartung', ok: 'Erfolg' };
+const NOTICE_PRESETS = [
+  ['🔧 Wartung', 'bad', 'Wartungsarbeiten: Der Server ist kurz offline. Infos im Discord.'],
+  ['🔄 Restart', 'warn', 'Server-Restart in 10 Minuten. Bitte sicher ausloggen.'],
+  ['✨ Update', 'info', 'Neues Update ist live! Alle Änderungen findest du unter News.'],
+  ['🎉 Release', 'ok', 'Real Life Southland III ist offen! Klick auf Spielen und los geht’s.']
+];
+const isoToLocal = (iso) => { if (!iso) return ''; const d = new Date(iso); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); };
+const IMG_LABEL = { '': 'Kein Bild', 'gallery/01-late-night-ride.jpg': 'Late Night Ride', 'gallery/02-sunset.jpg': 'Sunset Boulevard', 'gallery/03-low-and-slow.jpg': 'Low & Slow', 'gallery/04-neon-glow.jpg': 'Neon Glow', 'gallery/05-street-livery.jpg': 'Street Livery' };
+
+async function showLauncher(flash) {
+  setNav('launcher');
+  let d; try { d = await api('admin/launcher'); } catch (e) { return errBox(e); }
+  LA.s = d.settings; LA.meta = d; LA.dirty = false; window.EDITING = false;
+  const s = LA.s, endpoint = location.origin + '/api/launcher';
+  app.innerHTML = `<div class="wrap admin-main">
+    <div class="admin-head"><h1><span class="script">Was sehen die Spieler?</span>Launcher</h1>
+      <small class="muted">${s.updated_at ? `Zuletzt gespeichert von ${esc(d.updated_by_name || '–')} · ${ago(s.updated_at)}` : 'Noch nie gespeichert. Der Launcher nutzt seine eingebauten Werte.'}</small></div>
+    ${flash ? alertBox('ok', flash) : ''}<div id="laMsg"></div>
+    <div class="la-grid"><div class="la-main">
+
+      <section class="card la-card"><h2>Spielen-Knopf &amp; Countdown</h2>
+        <div class="seg big" id="laLock">
+          <button type="button" data-v="1"><b>🔒 Gesperrt</b><small>Knopf zeigt „Coming Soon“</small></button>
+          <button type="button" data-v="0"><b>▶ Freigegeben</b><small>Spielen verbindet direkt</small></button></div>
+        <p class="muted hint">Das Team kommt auch bei „Gesperrt“ rein: <b>Shift</b> halten und auf den Knopf klicken.</p>
+        <div class="grid2"><label class="field"><span>Release-Datum &amp; Uhrzeit</span><input type="datetime-local" id="laRelease" value="${isoToLocal(s.releaseDate)}"></label>
+          <div class="field"><span>&nbsp;</span><button type="button" class="btn btn-ghost sm" id="laNoDate" style="justify-self:start">Kein Datum (geheimer Countdown ??)</button></div></div>
+      </section>
+
+      <section class="card la-card"><h2>Hinweis-Balken</h2>
+        <p class="muted hint" style="margin-top:0">Erscheint oben im Launcher bei allen Spielern. Leer lassen = kein Balken.</p>
+        <div class="row" style="margin-bottom:12px">${NOTICE_PRESETS.map((p, i) => `<button type="button" class="btn btn-ghost sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
+        <label class="field"><span>Text</span><input id="laNotice" maxlength="200" value="${esc(s.notice.text)}" placeholder="z. B. Wartung bis 18 Uhr, Infos im Discord"></label>
+        <div class="grid2" style="margin-top:12px"><div class="field"><span>Farbe</span><div class="seg" id="laStyle">${Object.entries(NOTICE_LABEL).map(([k, l]) => `<button type="button" data-v="${k}" class="n-${k}">${l}</button>`).join('')}</div></div>
+          <label class="field"><span>Link beim Klick <small>(optional)</small></span><input id="laNoticeLink" maxlength="300" value="${esc(s.notice.link || '')}" placeholder="https://discord.gg/…"></label></div>
+        <button type="button" class="btn btn-ghost sm" id="laNoticeClear" style="margin-top:12px">Balken entfernen</button>
+      </section>
+
+      <section class="card la-card"><h2>News im Launcher</h2>
+        <div class="seg" id="laSrc"><button type="button" data-v="launcher">Eigene Launcher-News</button><button type="button" data-v="website">Website-News übernehmen</button></div>
+        <div id="laNewsBox"></div>
+      </section>
+
+      <details class="card la-card"><summary><h2>Server &amp; Links</h2></summary>
+        <div class="grid2" style="margin-top:14px">
+          <label class="field"><span>Server-Code <small>(cfx.re/join/…)</small></span><input id="laCode" maxlength="20" value="${esc(s.serverCode)}"></label>
+          <label class="field"><span>Direkte IP <small>(optional, statt cfx.re)</small></span><input id="laConnect" maxlength="80" value="${esc(s.connect || '')}" placeholder="123.45.67.89:30120"></label>
+          <label class="field"><span>Discord-Link</span><input id="laDiscord" maxlength="300" value="${esc(s.discord)}"></label>
+          <label class="field"><span>Website-Link <small>(leer = diese Website)</small></span><input id="laWebsite" maxlength="300" value="${esc(s.website || '')}" placeholder="${esc(location.origin)}/"></label>
+        </div></details>
+    </div>
+
+    <aside class="la-side">
+      <div class="card la-prev"><p class="la-k">Vorschau</p><div class="lp" id="laPrev"></div></div>
+      <div class="card la-info"><p class="la-k">Einmalig im Launcher eintragen</p>
+        <p class="muted">In der <code>config.js</code> des Launchers bei <code>remoteConfig</code>:</p>
+        <div class="code-line"><code id="laUrl">${esc(endpoint)}</code><button class="mini" id="laCopy">Kopieren</button></div>
+        <p class="muted" style="margin:10px 0 0;font-size:13px">Danach holt sich der Launcher Änderungen von hier, spätestens nach einer Minute. <b>F5</b> im Launcher lädt sofort. <a href="${esc(endpoint)}" target="_blank" rel="noopener" style="color:var(--pink)">Daten ansehen ↗</a></p></div>
+    </aside></div>
+    <div class="savebar" id="laBar" hidden><span>Ungespeicherte Änderungen</span><button class="btn btn-ghost sm" id="laReset">Verwerfen</button><button class="btn btn-pink sm" id="laSave">Speichern &amp; an alle Launcher senden</button></div>
+  </div>`;
+
+  const dirty = () => { LA.dirty = true; window.EDITING = true; $('laBar').hidden = false; preview(); };
+  const seg = (id, val, fn) => { const el = $(id); const set = (v) => el.querySelectorAll('[data-v]').forEach((b) => b.classList.toggle('on', b.dataset.v === String(v))); set(val);
+    el.onclick = (e) => { const b = e.target.closest('[data-v]'); if (!b) return; set(b.dataset.v); fn(b.dataset.v); dirty(); }; return set; };
+  seg('laLock', s.locked ? 1 : 0, (v) => { s.locked = v === '1'; });
+  const setStyle = seg('laStyle', s.notice.style, (v) => { s.notice.style = v; });
+  seg('laSrc', s.newsSource, (v) => { s.newsSource = v; renderLaNews(); });
+  const bind = (id, fn) => { $(id).oninput = () => { fn($(id).value); dirty(); }; };
+  bind('laRelease', (v) => { s.releaseDate = v ? new Date(v).toISOString() : null; });
+  bind('laNotice', (v) => { s.notice.text = v; });
+  bind('laNoticeLink', (v) => { s.notice.link = v.trim(); });
+  bind('laCode', (v) => { s.serverCode = v.trim(); });
+  bind('laConnect', (v) => { s.connect = v.trim(); });
+  bind('laDiscord', (v) => { s.discord = v.trim(); });
+  bind('laWebsite', (v) => { s.website = v.trim(); });
+  $('laNoDate').onclick = () => { $('laRelease').value = ''; s.releaseDate = null; dirty(); };
+  $('laNoticeClear').onclick = () => { $('laNotice').value = ''; s.notice.text = ''; dirty(); };
+  app.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => { const p = NOTICE_PRESETS[+b.dataset.preset]; s.notice.text = p[2]; s.notice.style = p[1]; $('laNotice').value = p[2]; setStyle(p[1]); dirty(); }));
+  $('laCopy').onclick = async () => { try { await navigator.clipboard.writeText(endpoint); toast('Adresse kopiert.'); } catch { toast('Bitte von Hand kopieren.', 'bad'); } };
+  $('laReset').onclick = () => showLauncher();
+  $('laSave').onclick = async () => {
+    $('laSave').disabled = true;
+    try { await api('admin/launcher', { method: 'PUT', body: s }); window.EDITING = false; toast('Gespeichert. Die Launcher holen sich das gleich.'); showLauncher('Gespeichert. Alle Launcher übernehmen die Änderung innerhalb einer Minute.'); }
+    catch (err) { $('laMsg').innerHTML = alertBox('bad', err.message); $('laSave').disabled = false; scrollTo(0, 0); }
+  };
+
+  function renderLaNews() {
+    const box = $('laNewsBox');
+    if (s.newsSource === 'website') { box.innerHTML = `<p class="muted hint">Der Launcher zeigt dieselben News wie die Startseite (die neuesten 6). Schreiben und veröffentlichen kannst du sie unter <a href="#news" style="color:var(--pink)">Website-News</a>.</p>`; return; }
+    box.innerHTML = `<p class="muted hint">Die erste News wird groß mit Bild angezeigt. ${s.news.length ? '' : 'Solange hier keine steht, zeigt der Launcher seine eingebauten News.'}</p>
+      <div class="la-news">${s.news.map((n, i) => `<div class="la-n" data-i="${i}">
+        <div class="la-n-head"><b>${i === 0 ? 'Große News' : 'News ' + (i + 1)}</b><span class="row">
+          <button type="button" class="mini" data-up="${i}" ${i === 0 ? 'disabled' : ''} aria-label="Nach oben">↑</button><button type="button" class="mini" data-down="${i}" ${i === s.news.length - 1 ? 'disabled' : ''} aria-label="Nach unten">↓</button><button type="button" class="mini" data-rm="${i}">Entfernen</button></span></div>
+        <div class="grid3"><label class="field"><span>Kategorie</span><select data-k="tag">${opts(Object.fromEntries(LA.meta.tags.map((t) => [t, t])), n.tag)}</select></label>
+          <label class="field"><span>Datum</span><input data-k="date" maxlength="30" value="${esc(n.date)}" placeholder="03.11.2026"></label>
+          <label class="field"><span>Bild</span><select data-k="image">${opts(IMG_LABEL, n.image || '')}</select></label></div>
+        <label class="field"><span>Überschrift</span><input data-k="title" maxlength="120" value="${esc(n.title)}"></label>
+        <label class="field"><span>Text</span><textarea data-k="text" maxlength="1500" style="min-height:70px">${esc(n.text)}</textarea></label></div>`).join('')}</div>
+      <button type="button" class="btn btn-ghost sm" id="laAddNews">+ News hinzufügen</button>`;
+    box.querySelectorAll('[data-k]').forEach((el) => (el.oninput = () => {
+      const n = s.news[+el.closest('.la-n').dataset.i]; n[el.dataset.k] = el.value;
+      if (el.dataset.k === 'tag') n.color = LA.meta.colors[el.value] || '#ff4fb3';
+      dirty();
+    }));
+    const move = (i, j) => { [s.news[i], s.news[j]] = [s.news[j], s.news[i]]; renderLaNews(); dirty(); };
+    box.querySelectorAll('[data-up]').forEach((b) => (b.onclick = () => move(+b.dataset.up, +b.dataset.up - 1)));
+    box.querySelectorAll('[data-down]').forEach((b) => (b.onclick = () => move(+b.dataset.down, +b.dataset.down + 1)));
+    box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { s.news.splice(+b.dataset.rm, 1); renderLaNews(); dirty(); }));
+    $('laAddNews').onclick = () => {
+      const d = new Date();
+      s.news.unshift({ tag: 'Ankündigung', color: LA.meta.colors['Ankündigung'], date: `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`, title: '', text: '', image: s.news.length ? '' : 'gallery/01-late-night-ride.jpg' });
+      renderLaNews(); dirty(); $('laNewsBox').querySelector('[data-k=title]').focus();
+    };
+  }
+  function preview() {
+    const rel = s.releaseDate ? new Date(s.releaseDate) : null;
+    let cd = '?? : ?? : ??';
+    if (rel) { const ms = rel - Date.now(); if (ms <= 0) cd = 'Release erreicht'; else { const dd = Math.floor(ms / 864e5), hh = Math.floor(ms % 864e5 / 36e5), mm = Math.floor(ms % 36e5 / 6e4); cd = `${dd} T · ${hh} Std · ${mm} Min`; } }
+    $('laPrev').innerHTML = `${s.notice.text ? `<div class="lp-notice n-${s.notice.style}">${esc(s.notice.text)}${s.notice.link ? ' ↗' : ''}</div>` : ''}
+      <img src="../logo.png" alt="" class="lp-logo"><div class="lp-cd"><small>${rel ? 'Release am ' + rel.toLocaleDateString('de-DE') + ', ' + rel.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : 'Release'}</small><b>${cd}</b></div>
+      <div class="lp-play ${s.locked ? 'locked' : ''}">${s.locked ? 'Coming Soon' : '▶ Spielen'}</div>
+      <small class="lp-con">connect ${esc(s.connect || 'cfx.re/join/' + s.serverCode)}</small>`;
+  }
+  renderLaNews(); preview();
+}
+addEventListener('beforeunload', (e) => { if (LA.dirty && LIVE.view === 'launcher') { e.preventDefault(); e.returnValue = ''; } });
 
 // ============================================================ Schnellsuche (Strg + K)
 const QUICK = () => [
