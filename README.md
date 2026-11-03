@@ -51,3 +51,9 @@ den Inhalt von `schema.sql` hineinkopieren und ausführen.
 ## Änderungen
 Datei hier auf GitHub bearbeiten oder neu hochladen → **Commit changes** → nach 1–2 Minuten ist die Website aktualisiert.
 Die Datenbank bleibt dabei unverändert.
+
+## Team-Panel (`/admin/`)
+**Admin:** Übersicht mit Pinnwand und Live-Aktivität, Bewerbungen, Spielerakten (Verwarnungen, Kicks, Bans mit Dauer), Website-News (erscheinen automatisch auf der Startseite), Team-Konten, Protokoll aller Änderungen, Einstellungen.
+**Dev:** To-do-Board (Ziehen oder Pfeile), Aufgaben mit Checkliste und Kommentaren, Roadmap mit Meilensteinen, Bug-Tracker, Scripts-Liste, Wiki.
+**Live:** Änderungen anderer Teammitglieder erscheinen nach wenigen Sekunden von selbst, inklusive „Gerade online“. **Strg + K** öffnet die Schnellsuche.
+Alle Tabellen legt das Panel beim ersten Anmelden selbst an.

@@ -555,6 +555,36 @@ const RELEASE = null;
     requestAnimationFrame(f)})();
 })();
 </script>
+<script>
+// News aus dem Team-Panel laden. Gibt es keine veröffentlichten, bleiben die festen News oben stehen.
+(function () {
+  var box = document.querySelector('#news .news'); if (!box || !window.fetch) return;
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var COL = { 'Ankündigung': '#ff4fb3', 'Update': '#7aa8ff', 'Event': '#ffc04f', 'Team': '#b47cff', 'Changelog': '#4fe0a0', 'Release': '#ff7a45' };
+  function body(t) {
+    var out = '', list = false;
+    String(t || '').split('\n').forEach(function (l) {
+      var m = l.match(/^\s*[-*]\s+(.*)/);
+      if (m) { if (!list) { out += '<ul>'; list = true; } out += '<li>' + esc(m[1]) + '</li>'; return; }
+      if (list) { out += '</ul>'; list = false; }
+      if (l.trim()) out += '<p>' + esc(l) + '</p>';
+    });
+    return out + (list ? '</ul>' : '');
+  }
+  function post(n, big) {
+    var d = new Date(n.created_at);
+    return '<article class="post glow' + (big ? ' big' : '') + '">' + (big ? '<div class="cover"><span class="new">Neu</span><img src="banner.jpg" alt=""></div>' : '') +
+      '<div class="in"><div class="meta"><span class="tagc" style="--t:' + (COL[n.tag] || '#ff4fb3') + '">' + esc(n.tag) + '</span><time datetime="' + esc(n.created_at) + '">' + d.toLocaleDateString('de-DE') + '</time></div>' +
+      '<h3>' + esc(n.title) + '</h3>' + body(n.body) + '</div></article>';
+  }
+  fetch('/api/news').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+    if (!d || !d.rows || !d.rows.length) return;
+    var rows = d.rows;
+    var dc = '<article class="post glow"><div class="in"><div class="meta"><span class="tagc" style="--t:#5865f2">Discord</span></div><h3>Alles Weitere im Discord</h3><p>Ankündigungen, Events und Support findet ihr zuerst bei uns im Discord.</p><p><a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener" style="margin-top:6px">Discord beitreten</a></p></div></article>';
+    box.innerHTML = post(rows[0], true) + '<div class="news-side">' + rows.slice(1).map(function (n) { return post(n, false); }).join('') + (rows.length < 3 ? dc : '') + '</div>';
+  }).catch(function () {});
+})();
+</script>
 <script src="site.js"></script>
 </body>
 </html>

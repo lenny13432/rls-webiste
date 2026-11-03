@@ -106,6 +106,7 @@ async function currentAdmin(req, env) {
   return row || null;
 }
 async function requireAdmin(req, env, ownerOnly = false) {
+  await ensureSchema(env.DB);
   const me = await currentAdmin(req, env);
   if (!me) throw new HttpError('Bitte melde dich an.', 401);
   if (ownerOnly && me.role !== 'owner') throw new HttpError('Das darf nur der Projektinhaber.', 403);
@@ -172,6 +173,7 @@ async function postApply({ request, env, ctx }) {
      VALUES (?,?,?,?,?,?,?,?,?,?,?, 'offen', ?, ?)`
   ).bind(code, d.discord_name, d.discord_id || null, d.age, d.position, d.hours, d.times, d.experience, d.motivation, d.scenario1, d.scenario2, ip, now()).run();
   const id = res.meta?.last_row_id;
+  try { await ensureSchema(db); await act(db, null, 'bewerbung', 'application', id, `Neue Bewerbung von ${q(d.discord_name)} als ${d.position}`).run(); } catch {}
 
   await discordNotify(env, ctx, {
     title: `Neue Team-Bewerbung #${id}`, color: 0xff4fb3, url: siteLink(env, `/admin/#bewerbung-${id}`),
@@ -301,7 +303,8 @@ async function setStatus({ request, env, params, ctx }) {
     db.prepare('UPDATE applications SET status = ?, public_note = ?, decided_by = ?, decided_at = ? WHERE id = ?')
       .bind(next, msg || (final ? null : app.public_note), me.id, final ? now() : null, id),
     db.prepare("INSERT INTO notes (application_id, admin_id, body, kind, created_at) VALUES (?, ?, ?, 'system', ?)")
-      .bind(id, me.id, `Status geändert: ${LABEL[app.status]} → ${LABEL[next]}` + (msg ? `\nNachricht an Bewerber: ${msg}` : ''), now())
+      .bind(id, me.id, `Status geändert: ${LABEL[app.status]} → ${LABEL[next]}` + (msg ? `\nNachricht an Bewerber: ${msg}` : ''), now()),
+    act(db, me, 'bewerbung', 'application', id, `hat die Bewerbung von ${q(app.discord_name)} auf „${LABEL[next]}“ gesetzt`)
   ]);
   if (final) {
     await discordNotify(env, ctx, {
@@ -319,14 +322,17 @@ async function addNote({ request, env, params }) {
   if (!body) throw new HttpError('Die Notiz ist leer.');
   const exists = await env.DB.prepare('SELECT 1 AS x FROM applications WHERE id = ?').bind(Number(params.id)).first();
   if (!exists) throw new HttpError('Diese Bewerbung gibt es nicht (mehr).', 404);
-  await env.DB.prepare("INSERT INTO notes (application_id, admin_id, body, kind, created_at) VALUES (?, ?, ?, 'note', ?)").bind(Number(params.id), me.id, body, now()).run();
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO notes (application_id, admin_id, body, kind, created_at) VALUES (?, ?, ?, 'note', ?)").bind(Number(params.id), me.id, body, now()),
+    act(env.DB, me, 'bewerbung', 'application', Number(params.id), `hat eine Notiz zu Bewerbung #${params.id} geschrieben`)
+  ]);
   return json({ ok: true });
 }
 
 async function deleteApplication({ request, env, params }) {
-  await requireAdmin(request, env, true);
+  const me = await requireAdmin(request, env, true);
   const id = Number(params.id), db = env.DB;
-  await db.batch([db.prepare('DELETE FROM notes WHERE application_id = ?').bind(id), db.prepare('DELETE FROM applications WHERE id = ?').bind(id)]);
+  await db.batch([db.prepare('DELETE FROM notes WHERE application_id = ?').bind(id), db.prepare('DELETE FROM applications WHERE id = ?').bind(id), act(db, me, 'bewerbung', 'application', id, `hat Bewerbung #${id} gelöscht`)]);
   return json({ ok: true });
 }
 
@@ -337,13 +343,14 @@ async function getTeam({ request, env }) {
 }
 
 async function createTeam({ request, env }) {
-  await requireAdmin(request, env, true);
+  const me = await requireAdmin(request, env, true);
   const b = await readBody(request);
   const name = str(b.name, 40), role = b.role === 'owner' ? 'owner' : 'admin';
   if (!/^[A-Za-z0-9_.-]{3,40}$/.test(name)) throw new HttpError('Benutzername: 3–40 Zeichen, nur Buchstaben, Zahlen, Punkt, Strich und Unterstrich.');
   if (await env.DB.prepare('SELECT 1 AS x FROM admins WHERE name = ? COLLATE NOCASE').bind(name).first()) throw new HttpError('Diesen Benutzernamen gibt es schon.', 409);
   const pass = newPassword();
   await env.DB.prepare('INSERT INTO admins (name, pass_hash, role, active, created_at) VALUES (?, ?, ?, 1, ?)').bind(name, await hashPassword(pass), role, now()).run();
+  await act(env.DB, me, 'team', 'admin', null, `hat das Team-Konto ${q(name)} angelegt (${role === 'owner' ? 'Owner' : 'Admin'})`).run();
   return json({ ok: true, name, password: pass }, 201);
 }
 
@@ -355,16 +362,16 @@ async function updateTeam({ request, env, params }) {
   if (!t) throw new HttpError('Dieses Konto gibt es nicht.', 404);
   const b = await readBody(request);
   if (b.action === 'toggle') {
-    await db.batch([db.prepare('UPDATE admins SET active = 1 - active WHERE id = ?').bind(id), db.prepare('DELETE FROM sessions WHERE admin_id = ?').bind(id)]);
+    await db.batch([db.prepare('UPDATE admins SET active = 1 - active WHERE id = ?').bind(id), db.prepare('DELETE FROM sessions WHERE admin_id = ?').bind(id), act(db, me, 'team', 'admin', id, `hat ${q(t.name)} ${t.active ? 'gesperrt' : 'entsperrt'}`)]);
     return json({ ok: true });
   }
   if (b.action === 'reset') {
     const pass = newPassword();
-    await db.batch([db.prepare('UPDATE admins SET pass_hash = ? WHERE id = ?').bind(await hashPassword(pass), id), db.prepare('DELETE FROM sessions WHERE admin_id = ?').bind(id)]);
+    await db.batch([db.prepare('UPDATE admins SET pass_hash = ? WHERE id = ?').bind(await hashPassword(pass), id), db.prepare('DELETE FROM sessions WHERE admin_id = ?').bind(id), act(db, me, 'team', 'admin', id, `hat für ${q(t.name)} ein neues Passwort erstellt`)]);
     return json({ ok: true, name: t.name, password: pass });
   }
   if (b.action === 'role') {
-    await db.prepare('UPDATE admins SET role = ? WHERE id = ?').bind(b.role === 'owner' ? 'owner' : 'admin', id).run();
+    await db.batch([db.prepare('UPDATE admins SET role = ? WHERE id = ?').bind(b.role === 'owner' ? 'owner' : 'admin', id), act(db, me, 'team', 'admin', id, `hat ${q(t.name)} zum ${b.role === 'owner' ? 'Owner' : 'Admin'} gemacht`)]);
     return json({ ok: true });
   }
   throw new HttpError('Unbekannte Aktion.');
@@ -385,7 +392,7 @@ async function changePassword({ request, env }) {
 }
 
 async function saveSettings({ request, env }) {
-  await requireAdmin(request, env, true);
+  const me = await requireAdmin(request, env, true);
   const b = await readBody(request);
   const states = ['offen', 'wenige', 'voll', 'geschlossen'];
   const positions = (Array.isArray(b.positions) ? b.positions : [])
@@ -395,125 +402,579 @@ async function saveSettings({ request, env }) {
   if (new Set(positions.map((p) => p.name.toLowerCase())).size !== positions.length) throw new HttpError('Jeder Bereich darf nur einmal vorkommen.');
   await env.DB.batch([
     env.DB.prepare("INSERT INTO settings (key, value) VALUES ('applications_open', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(b.open ? 'true' : 'false'),
-    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('positions', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(positions))
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('positions', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(positions)),
+    act(env.DB, me, 'team', 'settings', null, `hat die Bewerbungs-Einstellungen geändert (${b.open ? 'geöffnet' : 'pausiert'})`)
   ]);
   return json({ ok: true });
 }
 
-// ---------------------------------------------------------------- Dev-Panel: Roadmap & To-dos
-const TASK_STATUS = ['idee', 'todo', 'arbeit', 'test', 'fertig'];
-const TASK_PRIO = ['niedrig', 'normal', 'hoch', 'kritisch'];
-const TASK_CAT = ['Script', 'Mapping', 'Fahrzeuge', 'Kleidung', 'Fraktionen', 'Server', 'Website', 'Launcher', 'Discord', 'Bug', 'Sonstiges'];
-const MS_STATUS = ['geplant', 'arbeit', 'fertig'];
-const DEV_SCHEMA = [
+// ---------------------------------------------------------------- Panel-Erweiterungen: Tabellen
+// Alle Tabellen werden automatisch angelegt (CREATE TABLE IF NOT EXISTS), du musst nichts von Hand ausführen.
+const PANEL_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS activity (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER, kind TEXT NOT NULL, ref_type TEXT, ref_id INTEGER, text TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS presence (admin_id INTEGER PRIMARY KEY, last_seen TEXT NOT NULL, view TEXT)`,
+  `CREATE TABLE IF NOT EXISTS announcements (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, pinned INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, discord TEXT, license TEXT, notes TEXT, watch INTEGER NOT NULL DEFAULT 0, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS sanctions (id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL, type TEXT NOT NULL, reason TEXT NOT NULL, duration TEXT, expires_at TEXT, active INTEGER NOT NULL DEFAULT 1, admin_id INTEGER, created_at TEXT NOT NULL, lifted_by INTEGER, lifted_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS news (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, tag TEXT NOT NULL DEFAULT 'Ankündigung', published INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS dev_milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, target TEXT, status TEXT NOT NULL DEFAULT 'geplant', sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)`,
   `CREATE TABLE IF NOT EXISTS dev_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, status TEXT NOT NULL DEFAULT 'todo', priority TEXT NOT NULL DEFAULT 'normal', category TEXT NOT NULL DEFAULT 'Sonstiges', assignee_id INTEGER, milestone_id INTEGER, due TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
-  `CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status)`
+  `CREATE TABLE IF NOT EXISTS dev_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, admin_id INTEGER, body TEXT NOT NULL, created_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS dev_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, text TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, sort INTEGER NOT NULL DEFAULT 0)`,
+  `CREATE TABLE IF NOT EXISTS dev_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, kind TEXT, status TEXT NOT NULL DEFAULT 'aktiv', source TEXT, notes TEXT, admin_id INTEGER, updated_at TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS dev_docs (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, category TEXT, admin_id INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_sanctions_player ON sanctions(player_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_comments_task ON dev_comments(task_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_checks_task ON dev_checks(task_id)`
 ];
-let devReady = false;
-async function ensureDev(db) {
-  if (devReady) return;
-  await db.batch(DEV_SCHEMA.map((s) => db.prepare(s)));
-  devReady = true;
+let schemaReady = false;
+async function ensureSchema(db) {
+  if (schemaReady) return;
+  await db.batch(PANEL_SCHEMA.map((s) => db.prepare(s)));
+  schemaReady = true;
 }
+
+// Protokoll: jede Änderung wird festgehalten. Darüber läuft auch die Live-Aktualisierung.
+const act = (db, me, kind, refType, refId, text) =>
+  db.prepare('INSERT INTO activity (admin_id, kind, ref_type, ref_id, text, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(me ? me.id : null, kind, refType, refId ?? null, String(text).slice(0, 300), now());
+const q = (s) => `„${String(s).slice(0, 80)}“`;
+
 const pick = (v, list, d) => (list.includes(v) ? v : d);
 const dateOrNull = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
 const idOrNull = (v) => { const n = parseInt(v, 10); return Number.isFinite(n) && n > 0 ? n : null; };
+const has = (b, k) => Object.prototype.hasOwnProperty.call(b, k);
+const all = async (stmt) => (await stmt.all()).results || [];
+
+// ---------------------------------------------------------------- Live: Puls, Online-Liste, Suche
+async function getPulse({ request, env, url }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
+  const since = parseInt(url.searchParams.get('since'), 10) || 0;
+  if (url.searchParams.get('touch')) {
+    await db.prepare('INSERT INTO presence (admin_id, last_seen, view) VALUES (?, ?, ?) ON CONFLICT(admin_id) DO UPDATE SET last_seen = excluded.last_seen, view = excluded.view')
+      .bind(me.id, now(), str(url.searchParams.get('view'), 30)).run();
+  }
+  const [rev, events, online] = await Promise.all([
+    db.prepare('SELECT COALESCE(MAX(id), 0) AS r FROM activity').first(),
+    since ? all(db.prepare('SELECT v.id, v.admin_id, v.kind, v.ref_type, v.ref_id, v.text, v.created_at, a.name AS admin_name FROM activity v LEFT JOIN admins a ON a.id = v.admin_id WHERE v.id > ? ORDER BY v.id DESC LIMIT 15').bind(since)) : [],
+    all(db.prepare('SELECT a.id, a.name, p.view, p.last_seen FROM presence p JOIN admins a ON a.id = p.admin_id WHERE p.last_seen > ? AND a.active = 1 ORDER BY a.name').bind(isoAgo(75e3)))
+  ]);
+  const badges = await db.prepare("SELECT (SELECT COUNT(*) FROM applications WHERE status IN ('offen','pruefung')) AS apps, (SELECT COUNT(*) FROM dev_tasks WHERE category = 'Bug' AND status <> 'fertig') AS bugs").first();
+  return json({ rev: rev.r, events, online, badges });
+}
+
+async function getSearch({ request, env, url }) {
+  await requireAdmin(request, env);
+  const db = env.DB, term = str(url.searchParams.get('q'), 60).toLowerCase();
+  if (term.length < 2) return json({ results: [] });
+  const like = `%${term}%`;
+  const [apps, players, tasks, docs, res] = await Promise.all([
+    all(db.prepare('SELECT id, discord_name AS title, position AS sub FROM applications WHERE LOWER(discord_name) LIKE ? OR LOWER(code) LIKE ? ORDER BY id DESC LIMIT 5').bind(like, like)),
+    all(db.prepare('SELECT id, name AS title, discord AS sub FROM players WHERE LOWER(name) LIKE ? OR LOWER(COALESCE(discord,\'\')) LIKE ? OR LOWER(COALESCE(license,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 5').bind(like, like, like)),
+    all(db.prepare('SELECT id, title, status AS sub FROM dev_tasks WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(body,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 6').bind(like, like)),
+    all(db.prepare('SELECT id, title, category AS sub FROM dev_docs WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(body,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 5').bind(like, like)),
+    all(db.prepare('SELECT id, name AS title, status AS sub FROM dev_resources WHERE LOWER(name) LIKE ? OR LOWER(COALESCE(notes,\'\')) LIKE ? ORDER BY name LIMIT 5').bind(like, like))
+  ]);
+  const tag = (type, rows) => rows.map((r) => ({ type, ...r }));
+  return json({ results: [...tag('bewerbung', apps), ...tag('spieler', players), ...tag('aufgabe', tasks), ...tag('wiki', docs), ...tag('script', res)] });
+}
+
+// ---------------------------------------------------------------- Übersicht & Pinnwand
+async function getDashboard({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, n = now();
+  const one = (sql, ...a) => db.prepare(sql).bind(...a).first();
+  const [apps, myTasks, bugs, bans, players, prog, ann, feed, mine, news] = await Promise.all([
+    one("SELECT SUM(status = 'offen') AS offen, SUM(status = 'pruefung') AS pruefung FROM applications"),
+    one("SELECT COUNT(*) AS n FROM dev_tasks WHERE assignee_id = ? AND status <> 'fertig'", me.id),
+    one("SELECT COUNT(*) AS n FROM dev_tasks WHERE category = 'Bug' AND status <> 'fertig'"),
+    one("SELECT COUNT(DISTINCT player_id) AS n FROM sanctions WHERE type IN ('ban','permaban') AND active = 1 AND (expires_at IS NULL OR expires_at > ?)", n),
+    one('SELECT COUNT(*) AS n FROM players'),
+    one("SELECT COUNT(*) AS total, SUM(status = 'fertig') AS done FROM dev_tasks"),
+    all(db.prepare('SELECT x.*, a.name AS admin_name FROM announcements x LEFT JOIN admins a ON a.id = x.admin_id ORDER BY x.pinned DESC, x.id DESC LIMIT 12')),
+    all(db.prepare('SELECT v.*, a.name AS admin_name FROM activity v LEFT JOIN admins a ON a.id = v.admin_id ORDER BY v.id DESC LIMIT 14')),
+    all(db.prepare("SELECT id, title, status, priority, due, category FROM dev_tasks WHERE assignee_id = ? AND status <> 'fertig' ORDER BY CASE priority WHEN 'kritisch' THEN 0 WHEN 'hoch' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END, due IS NULL, due LIMIT 8").bind(me.id)),
+    one('SELECT COUNT(*) AS n FROM news WHERE published = 1')
+  ]);
+  return json({
+    stats: { appsOpen: apps.offen || 0, appsReview: apps.pruefung || 0, myTasks: myTasks.n, bugs: bugs.n, bans: bans.n, players: players.n, tasksTotal: prog.total || 0, tasksDone: prog.done || 0, news: news.n },
+    announcements: ann, feed, mine
+  });
+}
+
+async function createAnnouncement({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const b = await readBody(request);
+  const title = str(b.title, 120), body = str(b.body, 2000);
+  if (len(title) < 2) throw new HttpError('Gib der Nachricht einen Titel.');
+  const db = env.DB;
+  const r = await db.prepare('INSERT INTO announcements (title, body, pinned, admin_id, created_at) VALUES (?, ?, ?, ?, ?)').bind(title, body, b.pinned ? 1 : 0, me.id, now()).run();
+  await act(db, me, 'pinnwand', 'announcement', r.meta.last_row_id, `hat an die Pinnwand geschrieben: ${q(title)}`).run();
+  return json({ ok: true }, 201);
+}
+async function updateAnnouncement({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const x = await db.prepare('SELECT * FROM announcements WHERE id = ?').bind(id).first();
+  if (!x) throw new HttpError('Diese Nachricht gibt es nicht mehr.', 404);
+  await db.batch([
+    db.prepare('UPDATE announcements SET pinned = ? WHERE id = ?').bind(b.pinned ? 1 : 0, id),
+    act(db, me, 'pinnwand', 'announcement', id, `hat ${q(x.title)} ${b.pinned ? 'angeheftet' : 'gelöst'}`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteAnnouncement({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const x = await db.prepare('SELECT * FROM announcements WHERE id = ?').bind(id).first();
+  if (!x) return json({ ok: true });
+  if (x.admin_id !== me.id && me.role !== 'owner') throw new HttpError('Nur der Verfasser oder der Owner darf das löschen.', 403);
+  await db.batch([db.prepare('DELETE FROM announcements WHERE id = ?').bind(id), act(db, me, 'pinnwand', 'announcement', id, `hat ${q(x.title)} von der Pinnwand genommen`)]);
+  return json({ ok: true });
+}
+
+async function getActivity({ request, env, url }) {
+  await requireAdmin(request, env);
+  const before = parseInt(url.searchParams.get('before'), 10) || 0;
+  const who = parseInt(url.searchParams.get('who'), 10) || 0;
+  const kind = str(url.searchParams.get('kind'), 20);
+  const where = [], args = [];
+  if (before) { where.push('v.id < ?'); args.push(before); }
+  if (who) { where.push('v.admin_id = ?'); args.push(who); }
+  if (kind) { where.push('v.kind = ?'); args.push(kind); }
+  const rows = await all(env.DB.prepare(`SELECT v.*, a.name AS admin_name FROM activity v LEFT JOIN admins a ON a.id = v.admin_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY v.id DESC LIMIT 80`).bind(...args));
+  const team = await all(env.DB.prepare('SELECT id, name FROM admins ORDER BY name'));
+  return json({ rows, team });
+}
+
+// ---------------------------------------------------------------- Spielerakten & Sanktionen
+const SANCTIONS = ['hinweis', 'verwarnung', 'kick', 'ban', 'permaban'];
+const SANCTION_LABEL = { hinweis: 'Hinweis', verwarnung: 'Verwarnung', kick: 'Kick', ban: 'Ban', permaban: 'Permanenter Ban' };
+
+async function listPlayers({ request, env, url }) {
+  await requireAdmin(request, env);
+  const db = env.DB, n = now();
+  const term = str(url.searchParams.get('q'), 60).toLowerCase(), filter = url.searchParams.get('filter') || '';
+  const where = [], args = [n];
+  if (term) { where.push("(LOWER(p.name) LIKE ? OR LOWER(COALESCE(p.discord,'')) LIKE ? OR LOWER(COALESCE(p.license,'')) LIKE ?)"); args.push(`%${term}%`, `%${term}%`, `%${term}%`); }
+  if (filter === 'beobachten') where.push('p.watch = 1');
+  const rows = await all(db.prepare(`SELECT p.id, p.name, p.discord, p.license, p.watch, p.updated_at,
+      (SELECT COUNT(*) FROM sanctions s WHERE s.player_id = p.id AND s.type = 'verwarnung' AND s.active = 1) AS warns,
+      (SELECT COUNT(*) FROM sanctions s WHERE s.player_id = p.id) AS total,
+      (SELECT COALESCE(s.expires_at, '') || '|' || s.type FROM sanctions s WHERE s.player_id = p.id AND s.type IN ('ban','permaban') AND s.active = 1 AND (s.expires_at IS NULL OR s.expires_at > ?) ORDER BY s.expires_at IS NULL DESC, s.expires_at DESC LIMIT 1) AS ban
+    FROM players p ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY p.updated_at DESC LIMIT 300`).bind(...args));
+  const out = rows.map((r) => ({ ...r, ban: r.ban ? { until: r.ban.split('|')[0] || null, type: r.ban.split('|')[1] } : null }));
+  return json({ rows: filter === 'gebannt' ? out.filter((r) => r.ban) : filter === 'verwarnt' ? out.filter((r) => r.warns > 0) : out });
+}
+
+function playerFields(b, old = {}) {
+  const p = {
+    name: has(b, 'name') ? str(b.name, 60) : old.name,
+    discord: has(b, 'discord') ? str(b.discord, 60) : old.discord ?? '',
+    license: has(b, 'license') ? str(b.license, 120) : old.license ?? '',
+    notes: has(b, 'notes') ? str(b.notes, 6000) : old.notes ?? '',
+    watch: has(b, 'watch') ? (b.watch ? 1 : 0) : old.watch ?? 0
+  };
+  if (len(p.name) < 2) throw new HttpError('Gib den Namen des Spielers an (Ingame- oder FiveM-Name).');
+  return p;
+}
+async function createPlayer({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, p = playerFields(await readBody(request));
+  const r = await db.prepare('INSERT INTO players (name, discord, license, notes, watch, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(p.name, p.discord, p.license, p.notes, p.watch, me.id, now(), now()).run();
+  const id = r.meta.last_row_id;
+  await act(db, me, 'spieler', 'player', id, `hat eine Spielerakte für ${q(p.name)} angelegt`).run();
+  return json({ ok: true, id }, 201);
+}
+async function getPlayer({ request, env, params }) {
+  await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const p = await db.prepare('SELECT p.*, c.name AS created_by_name FROM players p LEFT JOIN admins c ON c.id = p.created_by WHERE p.id = ?').bind(id).first();
+  if (!p) throw new HttpError('Diese Spielerakte gibt es nicht.', 404);
+  const s = await all(db.prepare('SELECT s.*, a.name AS admin_name, l.name AS lifted_by_name FROM sanctions s LEFT JOIN admins a ON a.id = s.admin_id LEFT JOIN admins l ON l.id = s.lifted_by WHERE s.player_id = ? ORDER BY s.id DESC').bind(id));
+  return json({ player: p, sanctions: s, now: now() });
+}
+async function updatePlayer({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM players WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diese Spielerakte gibt es nicht.', 404);
+  const b = await readBody(request), p = playerFields(b, old);
+  const text = has(b, 'watch') && Object.keys(b).length === 1 ? `${p.watch ? 'beobachtet jetzt' : 'beobachtet nicht mehr'} ${q(p.name)}`
+    : has(b, 'notes') && Object.keys(b).length === 1 ? `hat die Notizen zu ${q(p.name)} ergänzt` : `hat die Akte von ${q(p.name)} bearbeitet`;
+  await db.batch([
+    db.prepare('UPDATE players SET name = ?, discord = ?, license = ?, notes = ?, watch = ?, updated_at = ? WHERE id = ?').bind(p.name, p.discord, p.license, p.notes, p.watch, now(), id),
+    act(db, me, 'spieler', 'player', id, text)
+  ]);
+  return json({ ok: true });
+}
+async function deletePlayer({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id);
+  const p = await db.prepare('SELECT name FROM players WHERE id = ?').bind(id).first();
+  if (!p) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM sanctions WHERE player_id = ?').bind(id), db.prepare('DELETE FROM players WHERE id = ?').bind(id), act(db, me, 'spieler', 'player', id, `hat die Spielerakte ${q(p.name)} gelöscht`)]);
+  return json({ ok: true });
+}
+async function addSanction({ request, env, params, ctx }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const p = await db.prepare('SELECT id, name FROM players WHERE id = ?').bind(id).first();
+  if (!p) throw new HttpError('Diese Spielerakte gibt es nicht.', 404);
+  const b = await readBody(request);
+  const type = pick(b.type, SANCTIONS, ''), reason = str(b.reason, 1000);
+  if (!type) throw new HttpError('Wähl die Art der Sanktion.');
+  if (len(reason) < 3) throw new HttpError('Gib einen Grund an, z. B. „RDM am Würfelpark“.');
+  let expires = null, duration = null;
+  if (type === 'ban') {
+    const hours = Number(b.hours);
+    if (!(hours > 0 && hours <= 24 * 365)) throw new HttpError('Wähl eine Ban-Dauer.');
+    expires = new Date(Date.now() + hours * 3600e3).toISOString();
+    duration = hours < 24 ? `${hours} Std.` : `${Math.round(hours / 24)} Tag${hours === 24 ? '' : 'e'}`;
+  }
+  if (type === 'permaban') duration = 'permanent';
+  await db.batch([
+    db.prepare('INSERT INTO sanctions (player_id, type, reason, duration, expires_at, active, admin_id, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?)').bind(id, type, reason, duration, expires, me.id, now()),
+    db.prepare('UPDATE players SET updated_at = ? WHERE id = ?').bind(now(), id),
+    act(db, me, 'spieler', 'player', id, `hat ${q(p.name)} sanktioniert: ${SANCTION_LABEL[type]}${duration && type === 'ban' ? ' (' + duration + ')' : ''}`)
+  ]);
+  if (type === 'ban' || type === 'permaban') {
+    await discordNotify(env, ctx, { title: `🔨 ${SANCTION_LABEL[type]}: ${p.name}`, color: 0xff5a6e, description: `**Grund:** ${reason}\n**Dauer:** ${duration}\n**Von:** ${me.name}` });
+  }
+  return json({ ok: true }, 201);
+}
+async function liftSanction({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const s = await db.prepare('SELECT s.*, p.name FROM sanctions s JOIN players p ON p.id = s.player_id WHERE s.id = ?').bind(id).first();
+  if (!s) throw new HttpError('Diese Sanktion gibt es nicht.', 404);
+  await db.batch([
+    db.prepare('UPDATE sanctions SET active = 0, lifted_by = ?, lifted_at = ? WHERE id = ?').bind(me.id, now(), id),
+    db.prepare('UPDATE players SET updated_at = ? WHERE id = ?').bind(now(), s.player_id),
+    act(db, me, 'spieler', 'player', s.player_id, `hat bei ${q(s.name)} eine Sanktion aufgehoben (${SANCTION_LABEL[s.type]})`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteSanction({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id);
+  const s = await db.prepare('SELECT s.*, p.name FROM sanctions s JOIN players p ON p.id = s.player_id WHERE s.id = ?').bind(id).first();
+  if (!s) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM sanctions WHERE id = ?').bind(id), act(db, me, 'spieler', 'player', s.player_id, `hat bei ${q(s.name)} einen Eintrag gelöscht (${SANCTION_LABEL[s.type]})`)]);
+  return json({ ok: true });
+}
+
+// ---------------------------------------------------------------- News für die Startseite
+const NEWS_TAGS = ['Ankündigung', 'Update', 'Event', 'Team', 'Changelog', 'Release'];
+async function getPublicNews({ env }) {
+  await ensureSchema(env.DB);
+  const rows = await all(env.DB.prepare('SELECT id, title, body, tag, pinned, created_at FROM news WHERE published = 1 ORDER BY pinned DESC, id DESC LIMIT 4'));
+  return new Response(JSON.stringify({ rows }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=30' } });
+}
+async function listNews({ request, env }) {
+  await requireAdmin(request, env);
+  return json({ rows: await all(env.DB.prepare('SELECT n.*, a.name AS admin_name FROM news n LEFT JOIN admins a ON a.id = n.admin_id ORDER BY n.pinned DESC, n.id DESC')), tags: NEWS_TAGS });
+}
+function newsFields(b, old = {}) {
+  const n = {
+    title: has(b, 'title') ? str(b.title, 120) : old.title,
+    body: has(b, 'body') ? str(b.body, 4000) : old.body ?? '',
+    tag: has(b, 'tag') ? pick(b.tag, NEWS_TAGS, 'Ankündigung') : old.tag ?? 'Ankündigung',
+    published: has(b, 'published') ? (b.published ? 1 : 0) : old.published ?? 0,
+    pinned: has(b, 'pinned') ? (b.pinned ? 1 : 0) : old.pinned ?? 0
+  };
+  if (len(n.title) < 3) throw new HttpError('Gib der News eine Überschrift.');
+  return n;
+}
+async function createNews({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, n = newsFields(await readBody(request));
+  const r = await db.prepare('INSERT INTO news (title, body, tag, published, pinned, admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(n.title, n.body, n.tag, n.published, n.pinned, me.id, now(), now()).run();
+  await act(db, me, 'news', 'news', r.meta.last_row_id, `hat die News ${q(n.title)} ${n.published ? 'veröffentlicht' : 'als Entwurf angelegt'}`).run();
+  return json({ ok: true }, 201);
+}
+async function updateNews({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM news WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diese News gibt es nicht mehr.', 404);
+  const n = newsFields(await readBody(request), old);
+  const verb = n.published !== old.published ? (n.published ? 'veröffentlicht' : 'offline genommen') : 'bearbeitet';
+  await db.batch([
+    db.prepare('UPDATE news SET title = ?, body = ?, tag = ?, published = ?, pinned = ?, updated_at = ? WHERE id = ?').bind(n.title, n.body, n.tag, n.published, n.pinned, now(), id),
+    act(db, me, 'news', 'news', id, `hat die News ${q(n.title)} ${verb}`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteNews({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title FROM news WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM news WHERE id = ?').bind(id), act(db, me, 'news', 'news', id, `hat die News ${q(old.title)} gelöscht`)]);
+  return json({ ok: true });
+}
+
+// ---------------------------------------------------------------- Dev: Aufgaben, Roadmap, Checklisten, Kommentare
+const TASK_STATUS = ['idee', 'todo', 'arbeit', 'test', 'fertig'];
+const TASK_STATUS_LABEL = { idee: 'Ideen', todo: 'To-do', arbeit: 'In Arbeit', test: 'Testen', fertig: 'Fertig' };
+const TASK_PRIO = ['niedrig', 'normal', 'hoch', 'kritisch'];
+const TASK_CAT = ['Script', 'Mapping', 'Fahrzeuge', 'Kleidung', 'Fraktionen', 'Server', 'Website', 'Launcher', 'Discord', 'Bug', 'Sonstiges'];
+const MS_STATUS = ['geplant', 'arbeit', 'fertig'];
 
 async function getDev({ request, env }) {
   await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
+  const db = env.DB;
   const [tasks, milestones, team] = await Promise.all([
-    db.prepare(`SELECT t.*, a.name AS assignee_name, c.name AS created_by_name FROM dev_tasks t
-      LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by ORDER BY t.updated_at DESC`).all(),
-    db.prepare('SELECT * FROM dev_milestones ORDER BY sort, target IS NULL, target, id').all(),
-    db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name').all()
+    all(db.prepare(`SELECT t.*, a.name AS assignee_name, c.name AS created_by_name,
+        (SELECT COUNT(*) FROM dev_comments k WHERE k.task_id = t.id) AS comments,
+        (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id) AS checks,
+        (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id AND h.done = 1) AS checks_done
+      FROM dev_tasks t LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by ORDER BY t.updated_at DESC`)),
+    all(db.prepare('SELECT * FROM dev_milestones ORDER BY sort, target IS NULL, target, id')),
+    all(db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name'))
   ]);
-  return json({ tasks: tasks.results, milestones: milestones.results, team: team.results, statuses: TASK_STATUS, priorities: TASK_PRIO, categories: TASK_CAT });
+  return json({ tasks, milestones, team, statuses: TASK_STATUS, priorities: TASK_PRIO, categories: TASK_CAT });
 }
 
 function taskFields(b, old = {}) {
-  const has = (k) => Object.prototype.hasOwnProperty.call(b, k);
   const t = {
-    title: has('title') ? str(b.title, 120) : old.title,
-    body: has('body') ? str(b.body, 4000) : old.body ?? '',
-    status: has('status') ? pick(b.status, TASK_STATUS, 'todo') : old.status ?? 'todo',
-    priority: has('priority') ? pick(b.priority, TASK_PRIO, 'normal') : old.priority ?? 'normal',
-    category: has('category') ? pick(b.category, TASK_CAT, 'Sonstiges') : old.category ?? 'Sonstiges',
-    assignee_id: has('assignee_id') ? idOrNull(b.assignee_id) : old.assignee_id ?? null,
-    milestone_id: has('milestone_id') ? idOrNull(b.milestone_id) : old.milestone_id ?? null,
-    due: has('due') ? dateOrNull(b.due) : old.due ?? null
+    title: has(b, 'title') ? str(b.title, 120) : old.title,
+    body: has(b, 'body') ? str(b.body, 4000) : old.body ?? '',
+    status: has(b, 'status') ? pick(b.status, TASK_STATUS, 'todo') : old.status ?? 'todo',
+    priority: has(b, 'priority') ? pick(b.priority, TASK_PRIO, 'normal') : old.priority ?? 'normal',
+    category: has(b, 'category') ? pick(b.category, TASK_CAT, 'Sonstiges') : old.category ?? 'Sonstiges',
+    assignee_id: has(b, 'assignee_id') ? idOrNull(b.assignee_id) : old.assignee_id ?? null,
+    milestone_id: has(b, 'milestone_id') ? idOrNull(b.milestone_id) : old.milestone_id ?? null,
+    due: has(b, 'due') ? dateOrNull(b.due) : old.due ?? null
   };
   if (!t.title || len(t.title) < 2) throw new HttpError('Gib der Aufgabe einen Titel.');
   return t;
 }
-
+async function getTask({ request, env, params }) {
+  await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const t = await db.prepare('SELECT t.*, a.name AS assignee_name, c.name AS created_by_name FROM dev_tasks t LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by WHERE t.id = ?').bind(id).first();
+  if (!t) throw new HttpError('Diese Aufgabe gibt es nicht mehr.', 404);
+  const [comments, checks] = await Promise.all([
+    all(db.prepare('SELECT k.*, a.name AS admin_name FROM dev_comments k LEFT JOIN admins a ON a.id = k.admin_id WHERE k.task_id = ? ORDER BY k.id').bind(id)),
+    all(db.prepare('SELECT * FROM dev_checks WHERE task_id = ? ORDER BY sort, id').bind(id))
+  ]);
+  return json({ task: t, comments, checks });
+}
 async function createTask({ request, env }) {
   const me = await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
-  const t = taskFields(await readBody(request));
+  const db = env.DB, t = taskFields(await readBody(request));
   const r = await db.prepare(`INSERT INTO dev_tasks (title, body, status, priority, category, assignee_id, milestone_id, due, created_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(t.title, t.body, t.status, t.priority, t.category, t.assignee_id, t.milestone_id, t.due, me.id, now(), now()).run();
-  return json({ ok: true, id: r.meta.last_row_id }, 201);
+  const id = r.meta.last_row_id;
+  await act(db, me, 'dev', 'task', id, t.category === 'Bug' ? `hat einen Bug gemeldet: ${q(t.title)}` : `hat die Aufgabe ${q(t.title)} angelegt`).run();
+  return json({ ok: true, id }, 201);
 }
-
 async function updateTask({ request, env, params }) {
-  await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
   const old = await db.prepare('SELECT * FROM dev_tasks WHERE id = ?').bind(Number(params.id)).first();
   if (!old) throw new HttpError('Diese Aufgabe gibt es nicht mehr.', 404);
   const t = taskFields(await readBody(request), old);
-  await db.prepare(`UPDATE dev_tasks SET title = ?, body = ?, status = ?, priority = ?, category = ?, assignee_id = ?, milestone_id = ?, due = ?, updated_at = ? WHERE id = ?`)
-    .bind(t.title, t.body, t.status, t.priority, t.category, t.assignee_id, t.milestone_id, t.due, now(), old.id).run();
+  const text = t.status !== old.status ? `hat ${q(t.title)} nach ${TASK_STATUS_LABEL[t.status]} verschoben`
+    : t.assignee_id !== old.assignee_id ? `hat die Zuständigkeit für ${q(t.title)} geändert` : `hat die Aufgabe ${q(t.title)} bearbeitet`;
+  await db.batch([
+    db.prepare(`UPDATE dev_tasks SET title = ?, body = ?, status = ?, priority = ?, category = ?, assignee_id = ?, milestone_id = ?, due = ?, updated_at = ? WHERE id = ?`)
+      .bind(t.title, t.body, t.status, t.priority, t.category, t.assignee_id, t.milestone_id, t.due, now(), old.id),
+    act(db, me, 'dev', 'task', old.id, text)
+  ]);
   return json({ ok: true });
 }
-
 async function deleteTask({ request, env, params }) {
-  await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
-  await db.prepare('DELETE FROM dev_tasks WHERE id = ?').bind(Number(params.id)).run();
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title FROM dev_tasks WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([
+    db.prepare('DELETE FROM dev_comments WHERE task_id = ?').bind(id), db.prepare('DELETE FROM dev_checks WHERE task_id = ?').bind(id),
+    db.prepare('DELETE FROM dev_tasks WHERE id = ?').bind(id), act(db, me, 'dev', 'task', id, `hat die Aufgabe ${q(old.title)} gelöscht`)
+  ]);
+  return json({ ok: true });
+}
+async function addComment({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), body = str((await readBody(request)).body, 3000);
+  if (!body) throw new HttpError('Der Kommentar ist leer.');
+  const t = await db.prepare('SELECT title FROM dev_tasks WHERE id = ?').bind(id).first();
+  if (!t) throw new HttpError('Diese Aufgabe gibt es nicht mehr.', 404);
+  await db.batch([
+    db.prepare('INSERT INTO dev_comments (task_id, admin_id, body, created_at) VALUES (?, ?, ?, ?)').bind(id, me.id, body, now()),
+    db.prepare('UPDATE dev_tasks SET updated_at = ? WHERE id = ?').bind(now(), id),
+    act(db, me, 'dev', 'task', id, `hat ${q(t.title)} kommentiert`)
+  ]);
+  return json({ ok: true }, 201);
+}
+async function addCheck({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), text = str((await readBody(request)).text, 200);
+  if (!text) throw new HttpError('Der Punkt ist leer.');
+  const t = await db.prepare('SELECT title FROM dev_tasks WHERE id = ?').bind(id).first();
+  if (!t) throw new HttpError('Diese Aufgabe gibt es nicht mehr.', 404);
+  const max = await db.prepare('SELECT COALESCE(MAX(sort), 0) AS s FROM dev_checks WHERE task_id = ?').bind(id).first();
+  await db.batch([
+    db.prepare('INSERT INTO dev_checks (task_id, text, done, sort) VALUES (?, ?, 0, ?)').bind(id, text, max.s + 1),
+    act(db, me, 'dev', 'task', id, `hat bei ${q(t.title)} einen Checklisten-Punkt ergänzt`)
+  ]);
+  return json({ ok: true }, 201);
+}
+async function updateCheck({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const c = await db.prepare('SELECT h.*, t.title FROM dev_checks h JOIN dev_tasks t ON t.id = h.task_id WHERE h.id = ?').bind(id).first();
+  if (!c) throw new HttpError('Diesen Punkt gibt es nicht mehr.', 404);
+  const done = has(b, 'done') ? (b.done ? 1 : 0) : c.done;
+  await db.batch([
+    db.prepare('UPDATE dev_checks SET done = ? WHERE id = ?').bind(done, id),
+    db.prepare('UPDATE dev_tasks SET updated_at = ? WHERE id = ?').bind(now(), c.task_id),
+    act(db, me, 'dev', 'task', c.task_id, `hat bei ${q(c.title)} ${q(c.text)} ${done ? 'abgehakt' : 'wieder geöffnet'}`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteCheck({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const c = await db.prepare('SELECT h.*, t.title FROM dev_checks h JOIN dev_tasks t ON t.id = h.task_id WHERE h.id = ?').bind(id).first();
+  if (!c) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM dev_checks WHERE id = ?').bind(id), act(db, me, 'dev', 'task', c.task_id, `hat bei ${q(c.title)} einen Checklisten-Punkt entfernt`)]);
   return json({ ok: true });
 }
 
 function msFields(b, old = {}) {
-  const has = (k) => Object.prototype.hasOwnProperty.call(b, k);
   const m = {
-    title: has('title') ? str(b.title, 80) : old.title,
-    body: has('body') ? str(b.body, 2000) : old.body ?? '',
-    target: has('target') ? str(b.target, 40) : old.target ?? '',
-    status: has('status') ? pick(b.status, MS_STATUS, 'geplant') : old.status ?? 'geplant',
-    sort: has('sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0
+    title: has(b, 'title') ? str(b.title, 80) : old.title,
+    body: has(b, 'body') ? str(b.body, 2000) : old.body ?? '',
+    target: has(b, 'target') ? str(b.target, 40) : old.target ?? '',
+    status: has(b, 'status') ? pick(b.status, MS_STATUS, 'geplant') : old.status ?? 'geplant',
+    sort: has(b, 'sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0
   };
   if (!m.title || len(m.title) < 2) throw new HttpError('Gib dem Meilenstein einen Namen.');
   return m;
 }
-
 async function createMilestone({ request, env }) {
-  await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
-  const m = msFields(await readBody(request));
+  const me = await requireAdmin(request, env);
+  const db = env.DB, m = msFields(await readBody(request));
   if (!m.sort) m.sort = ((await db.prepare('SELECT MAX(sort) AS s FROM dev_milestones').first())?.s || 0) + 1;
   const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)')
     .bind(m.title, m.body, m.target || null, m.status, m.sort, now()).run();
+  await act(db, me, 'dev', 'milestone', r.meta.last_row_id, `hat den Meilenstein ${q(m.title)} angelegt`).run();
   return json({ ok: true, id: r.meta.last_row_id }, 201);
 }
-
 async function updateMilestone({ request, env, params }) {
-  await requireAdmin(request, env);
-  const db = env.DB; await ensureDev(db);
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
   const old = await db.prepare('SELECT * FROM dev_milestones WHERE id = ?').bind(Number(params.id)).first();
   if (!old) throw new HttpError('Diesen Meilenstein gibt es nicht mehr.', 404);
   const m = msFields(await readBody(request), old);
-  await db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ? WHERE id = ?')
-    .bind(m.title, m.body, m.target || null, m.status, m.sort, old.id).run();
+  await db.batch([
+    db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ? WHERE id = ?').bind(m.title, m.body, m.target || null, m.status, m.sort, old.id),
+    act(db, me, 'dev', 'milestone', old.id, m.status !== old.status && m.status === 'fertig' ? `hat den Meilenstein ${q(m.title)} abgeschlossen 🎉` : `hat den Meilenstein ${q(m.title)} bearbeitet`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteMilestone({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title FROM dev_milestones WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([db.prepare('UPDATE dev_tasks SET milestone_id = NULL WHERE milestone_id = ?').bind(id), db.prepare('DELETE FROM dev_milestones WHERE id = ?').bind(id), act(db, me, 'dev', 'milestone', id, `hat den Meilenstein ${q(old.title)} gelöscht`)]);
   return json({ ok: true });
 }
 
-async function deleteMilestone({ request, env, params }) {
-  await requireAdmin(request, env, true);
-  const db = env.DB; await ensureDev(db);
-  const id = Number(params.id);
-  await db.batch([db.prepare('UPDATE dev_tasks SET milestone_id = NULL WHERE milestone_id = ?').bind(id), db.prepare('DELETE FROM dev_milestones WHERE id = ?').bind(id)]);
+// ---------------------------------------------------------------- Dev: Scripts / Ressourcen
+const RES_STATUS = ['aktiv', 'test', 'geplant', 'aus'];
+const RES_KIND = ['ESX', 'Standalone', 'Eigenes Script', 'Map / MLO', 'Fahrzeug', 'Kleidung', 'UI', 'Sonstiges'];
+async function listResources({ request, env }) {
+  await requireAdmin(request, env);
+  return json({ rows: await all(env.DB.prepare('SELECT r.*, a.name AS admin_name FROM dev_resources r LEFT JOIN admins a ON a.id = r.admin_id ORDER BY LOWER(r.name)')), statuses: RES_STATUS, kinds: RES_KIND });
+}
+function resFields(b, old = {}) {
+  const r = {
+    name: has(b, 'name') ? str(b.name, 80) : old.name,
+    version: has(b, 'version') ? str(b.version, 30) : old.version ?? '',
+    kind: has(b, 'kind') ? pick(b.kind, RES_KIND, 'Sonstiges') : old.kind ?? 'Sonstiges',
+    status: has(b, 'status') ? pick(b.status, RES_STATUS, 'aktiv') : old.status ?? 'aktiv',
+    source: has(b, 'source') ? str(b.source, 300) : old.source ?? '',
+    notes: has(b, 'notes') ? str(b.notes, 3000) : old.notes ?? ''
+  };
+  if (len(r.name) < 2) throw new HttpError('Gib den Ressourcen-Namen an, z. B. esx_garage.');
+  return r;
+}
+async function createResource({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, r = resFields(await readBody(request));
+  const res = await db.prepare('INSERT INTO dev_resources (name, version, kind, status, source, notes, admin_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(r.name, r.version, r.kind, r.status, r.source, r.notes, me.id, now()).run();
+  await act(db, me, 'dev', 'resource', res.meta.last_row_id, `hat das Script ${q(r.name)} eingetragen`).run();
+  return json({ ok: true }, 201);
+}
+async function updateResource({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM dev_resources WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Dieses Script gibt es nicht mehr.', 404);
+  const r = resFields(await readBody(request), old);
+  await db.batch([
+    db.prepare('UPDATE dev_resources SET name = ?, version = ?, kind = ?, status = ?, source = ?, notes = ?, admin_id = ?, updated_at = ? WHERE id = ?').bind(r.name, r.version, r.kind, r.status, r.source, r.notes, me.id, now(), id),
+    act(db, me, 'dev', 'resource', id, r.status !== old.status ? `hat ${q(r.name)} auf „${r.status}“ gesetzt` : `hat das Script ${q(r.name)} bearbeitet`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteResource({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT name FROM dev_resources WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM dev_resources WHERE id = ?').bind(id), act(db, me, 'dev', 'resource', id, `hat das Script ${q(old.name)} entfernt`)]);
+  return json({ ok: true });
+}
+
+// ---------------------------------------------------------------- Dev: Wiki
+async function listDocs({ request, env }) {
+  await requireAdmin(request, env);
+  return json({ rows: await all(env.DB.prepare('SELECT d.*, a.name AS admin_name FROM dev_docs d LEFT JOIN admins a ON a.id = d.admin_id ORDER BY LOWER(COALESCE(d.category, \'\')), LOWER(d.title)')) });
+}
+function docFields(b, old = {}) {
+  const d = {
+    title: has(b, 'title') ? str(b.title, 100) : old.title,
+    category: has(b, 'category') ? str(b.category, 40) : old.category ?? '',
+    body: has(b, 'body') ? str(b.body, 30000) : old.body ?? ''
+  };
+  if (len(d.title) < 2) throw new HttpError('Gib der Seite einen Titel.');
+  return d;
+}
+async function createDoc({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, d = docFields(await readBody(request));
+  const r = await db.prepare('INSERT INTO dev_docs (title, category, body, admin_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(d.title, d.category, d.body, me.id, now(), now()).run();
+  await act(db, me, 'dev', 'doc', r.meta.last_row_id, `hat die Wiki-Seite ${q(d.title)} angelegt`).run();
+  return json({ ok: true, id: r.meta.last_row_id }, 201);
+}
+async function updateDoc({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM dev_docs WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diese Wiki-Seite gibt es nicht mehr.', 404);
+  const d = docFields(await readBody(request), old);
+  await db.batch([
+    db.prepare('UPDATE dev_docs SET title = ?, category = ?, body = ?, admin_id = ?, updated_at = ? WHERE id = ?').bind(d.title, d.category, d.body, me.id, now(), id),
+    act(db, me, 'dev', 'doc', id, `hat die Wiki-Seite ${q(d.title)} bearbeitet`)
+  ]);
+  return json({ ok: true });
+}
+async function deleteDoc({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT title FROM dev_docs WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM dev_docs WHERE id = ?').bind(id), act(db, me, 'dev', 'doc', id, `hat die Wiki-Seite ${q(old.title)} gelöscht`)]);
   return json({ ok: true });
 }
 
@@ -537,13 +998,46 @@ const ROUTES = [
   ['POST', 'admin/team/:id', updateTeam],
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
+  ['GET', 'news', getPublicNews],
+  ['GET', 'admin/pulse', getPulse],
+  ['GET', 'admin/search', getSearch],
+  ['GET', 'admin/dashboard', getDashboard],
+  ['GET', 'admin/activity', getActivity],
+  ['POST', 'admin/announcements', createAnnouncement],
+  ['PUT', 'admin/announcements/:id', updateAnnouncement],
+  ['DELETE', 'admin/announcements/:id', deleteAnnouncement],
+  ['GET', 'admin/players', listPlayers],
+  ['POST', 'admin/players', createPlayer],
+  ['GET', 'admin/players/:id', getPlayer],
+  ['PUT', 'admin/players/:id', updatePlayer],
+  ['DELETE', 'admin/players/:id', deletePlayer],
+  ['POST', 'admin/players/:id/sanctions', addSanction],
+  ['POST', 'admin/sanctions/:id/lift', liftSanction],
+  ['DELETE', 'admin/sanctions/:id', deleteSanction],
+  ['GET', 'admin/news', listNews],
+  ['POST', 'admin/news', createNews],
+  ['PUT', 'admin/news/:id', updateNews],
+  ['DELETE', 'admin/news/:id', deleteNews],
   ['GET', 'admin/dev', getDev],
   ['POST', 'admin/dev/tasks', createTask],
+  ['GET', 'admin/dev/tasks/:id', getTask],
   ['PUT', 'admin/dev/tasks/:id', updateTask],
   ['DELETE', 'admin/dev/tasks/:id', deleteTask],
+  ['POST', 'admin/dev/tasks/:id/comments', addComment],
+  ['POST', 'admin/dev/tasks/:id/checks', addCheck],
+  ['PUT', 'admin/dev/checks/:id', updateCheck],
+  ['DELETE', 'admin/dev/checks/:id', deleteCheck],
   ['POST', 'admin/dev/milestones', createMilestone],
   ['PUT', 'admin/dev/milestones/:id', updateMilestone],
-  ['DELETE', 'admin/dev/milestones/:id', deleteMilestone]
+  ['DELETE', 'admin/dev/milestones/:id', deleteMilestone],
+  ['GET', 'admin/dev/resources', listResources],
+  ['POST', 'admin/dev/resources', createResource],
+  ['PUT', 'admin/dev/resources/:id', updateResource],
+  ['DELETE', 'admin/dev/resources/:id', deleteResource],
+  ['GET', 'admin/dev/docs', listDocs],
+  ['POST', 'admin/dev/docs', createDoc],
+  ['PUT', 'admin/dev/docs/:id', updateDoc],
+  ['DELETE', 'admin/dev/docs/:id', deleteDoc]
 ];
 
 function match(pattern, path) {

@@ -65,7 +65,21 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('applications_open', 'true'),
   ('positions', '[{"name":"Supporter","state":"offen"},{"name":"Moderator","state":"offen"},{"name":"Entwickler","state":"wenige"},{"name":"Eventmanager","state":"offen"},{"name":"Social Media","state":"voll"}]');
 
--- Dev-Panel (Roadmap & To-dos). Wird auch automatisch angelegt, sobald jemand das Dev-Panel öffnet.
+-- Panel: Protokoll, Online, Pinnwand, Spielerakten, News, Dev (Board, Roadmap, Checklisten, Kommentare, Scripts, Wiki).
+-- Wird auch automatisch angelegt, sobald sich jemand im Panel anmeldet.
+CREATE TABLE IF NOT EXISTS activity (id INTEGER PRIMARY KEY AUTOINCREMENT, admin_id INTEGER, kind TEXT NOT NULL, ref_type TEXT, ref_id INTEGER, text TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS presence (admin_id INTEGER PRIMARY KEY, last_seen TEXT NOT NULL, view TEXT);
+CREATE TABLE IF NOT EXISTS announcements (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, pinned INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, discord TEXT, license TEXT, notes TEXT, watch INTEGER NOT NULL DEFAULT 0, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS sanctions (id INTEGER PRIMARY KEY AUTOINCREMENT, player_id INTEGER NOT NULL, type TEXT NOT NULL, reason TEXT NOT NULL, duration TEXT, expires_at TEXT, active INTEGER NOT NULL DEFAULT 1, admin_id INTEGER, created_at TEXT NOT NULL, lifted_by INTEGER, lifted_at TEXT);
+CREATE TABLE IF NOT EXISTS news (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, tag TEXT NOT NULL DEFAULT 'Ankündigung', published INTEGER NOT NULL DEFAULT 0, pinned INTEGER NOT NULL DEFAULT 0, admin_id INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS dev_milestones (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, target TEXT, status TEXT NOT NULL DEFAULT 'geplant', sort INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS dev_tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, status TEXT NOT NULL DEFAULT 'todo', priority TEXT NOT NULL DEFAULT 'normal', category TEXT NOT NULL DEFAULT 'Sonstiges', assignee_id INTEGER, milestone_id INTEGER, due TEXT, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS dev_comments (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, admin_id INTEGER, body TEXT NOT NULL, created_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS dev_checks (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, text TEXT NOT NULL, done INTEGER NOT NULL DEFAULT 0, sort INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS dev_resources (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, version TEXT, kind TEXT, status TEXT NOT NULL DEFAULT 'aktiv', source TEXT, notes TEXT, admin_id INTEGER, updated_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS dev_docs (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, body TEXT, category TEXT, admin_id INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_dev_tasks_status ON dev_tasks(status);
+CREATE INDEX IF NOT EXISTS idx_sanctions_player ON sanctions(player_id);
+CREATE INDEX IF NOT EXISTS idx_comments_task ON dev_comments(task_id);
+CREATE INDEX IF NOT EXISTS idx_checks_task ON dev_checks(task_id);
