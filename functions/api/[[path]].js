@@ -429,9 +429,21 @@ const PANEL_SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_checks_task ON dev_checks(task_id)`
 ];
 let schemaReady = false;
+// Neue Spalten für bestehende Tabellen (ältere Datenbanken bekommen sie automatisch nachgerüstet)
+const COLUMN_MIGRATIONS = [
+  ['dev_milestones', 'start_date', 'TEXT'], ['dev_milestones', 'end_date', 'TEXT'], ['dev_milestones', 'goal', 'TEXT'],
+  ['dev_milestones', 'owner_id', 'INTEGER'], ['dev_milestones', 'public', 'INTEGER NOT NULL DEFAULT 0']
+];
 async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(PANEL_SCHEMA.map((s) => db.prepare(s)));
+  const tables = [...new Set(COLUMN_MIGRATIONS.map((m) => m[0]))];
+  for (const t of tables) {
+    const cols = new Set((await all(db.prepare(`PRAGMA table_info(${t})`))).map((c) => c.name));
+    for (const [tt, col, type] of COLUMN_MIGRATIONS) if (tt === t && !cols.has(col)) {
+      try { await db.prepare(`ALTER TABLE ${t} ADD COLUMN ${col} ${type}`).run(); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
+    }
+  }
   schemaReady = true;
 }
 
@@ -742,7 +754,7 @@ async function getDev({ request, env }) {
         (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id) AS checks,
         (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id AND h.done = 1) AS checks_done
       FROM dev_tasks t LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by ORDER BY t.updated_at DESC`)),
-    all(db.prepare('SELECT * FROM dev_milestones ORDER BY sort, target IS NULL, target, id')),
+    all(db.prepare('SELECT m.*, a.name AS owner_name FROM dev_milestones m LEFT JOIN admins a ON a.id = m.owner_id ORDER BY m.sort, m.start_date IS NULL, m.start_date, m.id')),
     all(db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name'))
   ]);
   return json({ tasks, milestones, team, statuses: TASK_STATUS, priorities: TASK_PRIO, categories: TASK_CAT });
@@ -862,17 +874,23 @@ function msFields(b, old = {}) {
     body: has(b, 'body') ? str(b.body, 2000) : old.body ?? '',
     target: has(b, 'target') ? str(b.target, 40) : old.target ?? '',
     status: has(b, 'status') ? pick(b.status, MS_STATUS, 'geplant') : old.status ?? 'geplant',
-    sort: has(b, 'sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0
+    sort: has(b, 'sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0,
+    start_date: has(b, 'start_date') ? dateOrNull(b.start_date) : old.start_date ?? null,
+    end_date: has(b, 'end_date') ? dateOrNull(b.end_date) : old.end_date ?? null,
+    goal: has(b, 'goal') ? str(b.goal, 1000) : old.goal ?? '',
+    owner_id: has(b, 'owner_id') ? idOrNull(b.owner_id) : old.owner_id ?? null,
+    public: has(b, 'public') ? (b.public && b.public !== 'false' && b.public !== '0' ? 1 : 0) : old.public ?? 0
   };
   if (!m.title || len(m.title) < 2) throw new HttpError('Gib dem Meilenstein einen Namen.');
+  if (m.start_date && m.end_date && m.end_date < m.start_date) throw new HttpError('Das Ende liegt vor dem Start.');
   return m;
 }
 async function createMilestone({ request, env }) {
   const me = await requireAdmin(request, env);
   const db = env.DB, m = msFields(await readBody(request));
   if (!m.sort) m.sort = ((await db.prepare('SELECT MAX(sort) AS s FROM dev_milestones').first())?.s || 0) + 1;
-  const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(m.title, m.body, m.target || null, m.status, m.sort, now()).run();
+  const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at, start_date, end_date, goal, owner_id, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(m.title, m.body, m.target || null, m.status, m.sort, now(), m.start_date, m.end_date, m.goal, m.owner_id, m.public).run();
   await act(db, me, 'dev', 'milestone', r.meta.last_row_id, `hat den Meilenstein ${q(m.title)} angelegt`).run();
   return json({ ok: true, id: r.meta.last_row_id }, 201);
 }
@@ -883,7 +901,7 @@ async function updateMilestone({ request, env, params }) {
   if (!old) throw new HttpError('Diesen Meilenstein gibt es nicht mehr.', 404);
   const m = msFields(await readBody(request), old);
   await db.batch([
-    db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ? WHERE id = ?').bind(m.title, m.body, m.target || null, m.status, m.sort, old.id),
+    db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ?, start_date = ?, end_date = ?, goal = ?, owner_id = ?, public = ? WHERE id = ?').bind(m.title, m.body, m.target || null, m.status, m.sort, m.start_date, m.end_date, m.goal, m.owner_id, m.public, old.id),
     act(db, me, 'dev', 'milestone', old.id, m.status !== old.status && m.status === 'fertig' ? `hat den Meilenstein ${q(m.title)} abgeschlossen 🎉` : `hat den Meilenstein ${q(m.title)} bearbeitet`)
   ]);
   return json({ ok: true });
@@ -895,6 +913,16 @@ async function deleteMilestone({ request, env, params }) {
   if (!old) return json({ ok: true });
   await db.batch([db.prepare('UPDATE dev_tasks SET milestone_id = NULL WHERE milestone_id = ?').bind(id), db.prepare('DELETE FROM dev_milestones WHERE id = ?').bind(id), act(db, me, 'dev', 'milestone', id, `hat den Meilenstein ${q(old.title)} gelöscht`)]);
   return json({ ok: true });
+}
+
+// Öffentliche Roadmap für die Website: nur Meilensteine mit „Auf der Website zeigen“, ohne interne Aufgaben
+async function getPublicRoadmap({ env }) {
+  const db = env.DB; await ensureSchema(db);
+  const rows = await all(db.prepare(`SELECT m.id, m.title, m.body, m.goal, m.target, m.status, m.start_date, m.end_date,
+      (SELECT COUNT(*) FROM dev_tasks t WHERE t.milestone_id = m.id) AS total,
+      (SELECT COUNT(*) FROM dev_tasks t WHERE t.milestone_id = m.id AND t.status = 'fertig') AS done
+    FROM dev_milestones m WHERE m.public = 1 ORDER BY m.sort, m.start_date IS NULL, m.start_date, m.id`));
+  return new Response(JSON.stringify({ rows }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
 }
 
 // ---------------------------------------------------------------- Dev: Scripts / Ressourcen
@@ -1450,6 +1478,7 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['GET', 'roadmap', getPublicRoadmap],
   ['GET', 'admin/teamlist', getTeamList],
   ['GET', 'admin/teamlist/:id', getTeamMember],
   ['PUT', 'admin/teamlist/:id', saveTeamProfile],
