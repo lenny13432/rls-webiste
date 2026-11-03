@@ -9,36 +9,33 @@ Läuft auf **Cloudflare Pages**, die Daten liegen in **Cloudflare D1**.
 | `public/` | Alle Seiten, Bilder und das CSS (das, was Besucher sehen) |
 | `public/admin/` | Team-Panel |
 | `functions/api/[[path]].js` | Die Schnittstelle zur Datenbank (Bewerbungen, Login, Team) |
+| `src/worker.js` | Startpunkt des Workers |
+| `wrangler.toml` | Einstellungen für Cloudflare (Name, Datenbank) |
 | `schema.sql` | Aufbau der Datenbank-Tabellen |
 
-## Einrichtung in Cloudflare (einmalig)
+## Einrichtung in Cloudflare (einmalig) – als Worker
 
-**1. Projekt mit GitHub verbinden**
-Cloudflare → **Workers & Pages** → **Erstellen** → **Pages** → **Mit Git verbinden** → dieses Repository wählen.
-- Framework-Voreinstellung: **Keine**
+**1. Datenbank-ID eintragen**
+Cloudflare → **Speicher & Datenbanken** → **D1** → `southland` → **Datenbank-ID** kopieren.
+In `wrangler.toml` bei `database_id` einfügen. Bei `name` den Namen deines Workers eintragen.
+
+**2. Worker mit GitHub verbinden**
+Cloudflare → **Workers & Pages** → **Erstellen** → **Repository importieren** → dieses Repository wählen.
 - Build-Befehl: **leer**
-- Ausgabeverzeichnis: **`public`**
+- Bereitstellungsbefehl: `npx wrangler deploy` (Standard)
 
-→ **Speichern und bereitstellen**
-
-**2. Datenbank verbinden**
-Im Pages-Projekt → **Einstellungen** → **Bindungen** → **Hinzufügen** → **D1-Datenbank**
-- Variablenname: **`DB`** (genau so, großgeschrieben)
-- Datenbank: **`southland`**
+Die Seiten (`public`), die Datenbank und die Schnittstelle kommen automatisch aus `wrangler.toml`.
 
 **3. Einrichtungsschlüssel**
-**Einstellungen** → **Variablen und Geheimnisse** → **Hinzufügen** → Typ **Geheimnis**
-- `SETUP_KEY` = ein selbst ausgedachtes Wort (brauchst du gleich zum Anlegen deines Kontos)
+Im Worker → **Einstellungen** → **Variablen und Geheimnisse** → **Hinzufügen** → Typ **Geheimnis**
+- `SETUP_KEY` = ein selbst ausgedachtes Wort
 - optional `DISCORD_WEBHOOK` = Webhook-URL eures Team-Kanals
 
-**4. Neu bereitstellen**
-**Bereitstellungen** → bei der neuesten auf **⋯** → **Erneut versuchen**. Erst dann gelten Datenbank und Schlüssel.
-
-**5. Konto anlegen**
-`https://DEIN-PROJEKT.pages.dev/admin/` öffnen → Einrichtungsschlüssel eingeben → Owner-Konto anlegen.
+**4. Konto anlegen**
+`https://DEIN-WORKER.DEIN-NAME.workers.dev/admin/` öffnen → Einrichtungsschlüssel eingeben → Owner-Konto anlegen.
 
 ## Optionale Einstellungen
-Unter **Variablen und Geheimnisse** als normale Variable (Typ **Text**):
+In `wrangler.toml` unter `[vars]` (danach auf GitHub speichern):
 
 | Name | Standard | Bedeutung |
 |---|---|---|
