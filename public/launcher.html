@@ -178,12 +178,12 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
       <a class="btn btn-ghost" href="#anleitung">Zur Anleitung</a>
     </div>
     <div class="facts">
-      <span class="fact">Version <b>1.4.0</b></span>
-      <span class="fact">Größe <b>88 MB</b></span>
+      <span class="fact">Version <b id="dlVer">1.6.0</b></span>
+      <span class="fact" id="dlSizeBox" hidden>Größe <b id="dlSize"></b></span>
       <span class="fact"><b>Windows</b> 10 &amp; 11</span>
       <span class="fact"><b>Kostenlos</b></span>
     </div>
-    <div class="hash"><span>SHA-256:</span><code id="sha">2aad7c4fa4b6bcec7ab0c3fa2269b1300c670d453fabc4f892e186275e523154</code><button type="button" data-copy="sha">Kopieren</button></div>
+    <div class="hash" id="hashBox" hidden><span>SHA-256:</span><code id="sha"></code><button type="button" data-copy="sha">Kopieren</button></div>
   </div>
   <div class="window"><img src="launcher-shot.jpg" alt="Startseite des Real Life Southland Launchers mit Countdown und Spielen-Button"></div>
 </div></header>
@@ -225,7 +225,7 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
         </div>
         <div>
           <div class="smart-cap">2. „Trotzdem ausführen“</div>
-          <div class="smart" aria-hidden="true"><div class="top"><div class="t">Der Computer wurde durch Windows geschützt</div><div class="d">App: Real Life Southland Setup 1.4.0.exe<br>Herausgeber: Unbekannter Herausgeber</div></div><div class="bot"><span class="run hl">Trotzdem ausführen</span><span>Nicht ausführen</span></div></div>
+          <div class="smart" aria-hidden="true"><div class="top"><div class="t">Der Computer wurde durch Windows geschützt</div><div class="d">App: Real Life Southland Setup <span class="dlv">1.6.0</span>.exe<br>Herausgeber: Unbekannter Herausgeber</div></div><div class="bot"><span class="run hl">Trotzdem ausführen</span><span>Nicht ausführen</span></div></div>
         </div>
       </div>
     </div></li>
@@ -289,8 +289,9 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
 
 <script>
 // ===== DOWNLOAD-LINK =====
-// Direkter Link zur Setup-Datei (z. B. Dropbox mit ?dl=1). Leer = Download noch nicht verfügbar.
-const DOWNLOAD_URL = 'https://www.dropbox.com/scl/fi/py6lm1coyeuvqz87q41p8/Real-Life-Southland-Setup-1.4.0.exe?rlkey=4kex8i32ac1xhe6nfytccmjgf&st=6binsq84&dl=1';
+// Standard-Link, falls das Team-Panel nicht erreichbar ist. Den aktuellen Link
+// trägst du im Team-Panel unter „Launcher → Download“ ein, dann ist hier nichts zu ändern.
+let DOWNLOAD_URL = 'https://www.dropbox.com/scl/fi/jlrknch6vuxjc01t0plbf/Real-Life-Southland-Setup-1.6.0.exe?rlkey=1azaxh4ahkkrcyo0ovikppefw&st=sejctbcj&dl=1';
 
 const toast=document.getElementById('toast');let tt;
 const show=m=>{toast.textContent=m;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,1800)};
@@ -301,13 +302,22 @@ document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',(
 }));
 
 // Download-Buttons verdrahten
-document.querySelectorAll('[data-dl]').forEach(a=>{
-  if(DOWNLOAD_URL){ a.href=DOWNLOAD_URL; a.target='_blank'; a.rel='noopener'; }
+const wireDl=()=>document.querySelectorAll('[data-dl]').forEach(a=>{
+  if(DOWNLOAD_URL){ a.href=DOWNLOAD_URL; a.target='_blank'; a.rel='noopener'; a.onclick=null; const sm=a.querySelector('small'); if(sm) sm.textContent='Setup.exe für Windows'; }
   else{
-    a.addEventListener('click',e=>{e.preventDefault();show('Download kommt in Kürze. Infos im Discord!')});
+    a.href='#'; a.onclick=e=>{e.preventDefault();show('Download kommt in Kürze. Infos im Discord!')};
     const sm=a.querySelector('small'); if(sm) sm.textContent='Kommt in Kürze';
   }
 });
+wireDl();
+// Aktuellen Link, Version, Größe und Prüfsumme aus dem Team-Panel holen
+fetch('/api/launcher').then(r=>r.ok?r.json():null).then(d=>{
+  const dl=d&&d.download; if(!dl) return;
+  if(dl.url){ DOWNLOAD_URL=dl.url; wireDl(); }
+  if(dl.version){ document.getElementById('dlVer').textContent=dl.version; document.querySelectorAll('.dlv').forEach(e=>e.textContent=dl.version); }
+  if(dl.size){ document.getElementById('dlSize').textContent=dl.size; document.getElementById('dlSizeBox').hidden=false; }
+  if(dl.sha256){ document.getElementById('sha').textContent=dl.sha256; document.getElementById('hashBox').hidden=false; }
+}).catch(()=>{});
 </script>
 <script src="site.js"></script>
 </body>

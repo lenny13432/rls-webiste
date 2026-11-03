@@ -644,6 +644,14 @@ async function showLauncher(flash) {
         <div id="laNewsBox"></div>
       </section>
 
+      <section class="card la-card"><h2>Download auf der Website</h2>
+        <p class="muted hint" style="margin-top:0">Neue Launcher-Version gebaut? Link hier tauschen, speichern, fertig. Die Seite <a href="../launcher.html" target="_blank" style="color:var(--pink)">Launcher</a> nutzt sofort den neuen Download. Dropbox-Links mit <code>dl=0</code> werden automatisch zu Direkt-Downloads.</p>
+        <label class="field"><span>Download-Link</span><input id="laDl" maxlength="300" value="${esc(s.download.url)}" placeholder="https://www.dropbox.com/…"></label>
+        <div class="grid3" style="margin-top:12px"><label class="field"><span>Version</span><input id="laDlVer" maxlength="20" value="${esc(s.download.version)}" placeholder="1.6.0"></label>
+          <label class="field"><span>Größe <small>(optional)</small></span><input id="laDlSize" maxlength="20" value="${esc(s.download.size)}" placeholder="88 MB"></label>
+          <label class="field"><span>SHA-256 <small>(optional)</small></span><input id="laDlSha" maxlength="80" value="${esc(s.download.sha256)}" style="font-family:var(--mono);font-size:13px"></label></div>
+      </section>
+
       <details class="card la-card"><summary><h2>Server &amp; Links</h2></summary>
         <div class="grid2" style="margin-top:14px">
           <label class="field"><span>Server-Code <small>(cfx.re/join/…)</small></span><input id="laCode" maxlength="20" value="${esc(s.serverCode)}"></label>
@@ -677,6 +685,10 @@ async function showLauncher(flash) {
   bind('laConnect', (v) => { s.connect = v.trim(); });
   bind('laDiscord', (v) => { s.discord = v.trim(); });
   bind('laWebsite', (v) => { s.website = v.trim(); });
+  bind('laDl', (v) => { s.download.url = v.trim(); });
+  bind('laDlVer', (v) => { s.download.version = v.trim(); });
+  bind('laDlSize', (v) => { s.download.size = v.trim(); });
+  bind('laDlSha', (v) => { s.download.sha256 = v.trim(); });
   $('laNoDate').onclick = () => { $('laRelease').value = ''; s.releaseDate = null; dirty(); };
   $('laNoticeClear').onclick = () => { $('laNotice').value = ''; s.notice.text = ''; dirty(); };
   app.querySelectorAll('[data-preset]').forEach((b) => (b.onclick = () => { const p = NOTICE_PRESETS[+b.dataset.preset]; s.notice.text = p[2]; s.notice.style = p[1]; $('laNotice').value = p[2]; setStyle(p[1]); dirty(); }));

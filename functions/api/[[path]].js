@@ -986,12 +986,13 @@ const NOTICE_STYLES = ['info', 'warn', 'bad', 'ok'];
 const LAUNCHER_IMAGES = ['', 'gallery/01-late-night-ride.jpg', 'gallery/02-sunset.jpg', 'gallery/03-low-and-slow.jpg', 'gallery/04-neon-glow.jpg', 'gallery/05-street-livery.jpg'];
 const LAUNCHER_DEFAULT = {
   locked: true, releaseDate: null, serverCode: 'qqabgvz', connect: '', discord: 'https://discord.gg/q9kBzXP9va', website: '',
-  notice: { text: '', style: 'info', link: '' }, newsSource: 'launcher', news: [], updated_at: null, updated_by: null
+  notice: { text: '', style: 'info', link: '' }, newsSource: 'launcher', news: [],
+  download: { url: 'https://www.dropbox.com/scl/fi/jlrknch6vuxjc01t0plbf/Real-Life-Southland-Setup-1.6.0.exe?rlkey=1azaxh4ahkkrcyo0ovikppefw&st=sejctbcj&dl=1', version: '1.6.0', size: '', sha256: '' }, updated_at: null, updated_by: null
 };
 async function getLauncherSettings(db) {
   const row = await db.prepare("SELECT value FROM settings WHERE key = 'launcher'").first();
   let s = {}; try { s = row ? JSON.parse(row.value) : {}; } catch {}
-  return { ...LAUNCHER_DEFAULT, ...s, notice: { ...LAUNCHER_DEFAULT.notice, ...(s.notice || {}) } };
+  return { ...LAUNCHER_DEFAULT, ...s, notice: { ...LAUNCHER_DEFAULT.notice, ...(s.notice || {}) }, download: { ...LAUNCHER_DEFAULT.download, ...(s.download || {}) } };
 }
 const deDate = (iso) => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
 
@@ -1001,6 +1002,7 @@ async function getPublicLauncher({ env, url }) {
   const out = { locked: !!s.locked, releaseDate: s.releaseDate || null, serverCode: s.serverCode, connect: s.connect || null, discord: s.discord };
   if (s.website) out.website = s.website;
   else out.website = url.origin + '/';
+  out.download = { url: s.download.url || null, version: s.download.version || null, size: s.download.size || null, sha256: s.download.sha256 || null };
   out.notice = s.notice.text ? { text: s.notice.text, style: s.notice.style, link: s.notice.link || null } : null;
   if (s.newsSource === 'website') {
     const rows = await all(db.prepare('SELECT title, body, tag, created_at FROM news WHERE published = 1 ORDER BY pinned DESC, id DESC LIMIT 6'));
@@ -1039,6 +1041,11 @@ async function saveLauncher({ request, env }) {
     connect: str(b.connect, 80), discord: urlOk(b.discord), website: urlOk(b.website),
     notice: { text: str(b.notice?.text, 200), style: pick(b.notice?.style, NOTICE_STYLES, 'info'), link: urlOk(b.notice?.link) },
     newsSource: b.newsSource === 'website' ? 'website' : 'launcher', news,
+    download: {
+      url: urlOk(b.download?.url).replace(/([?&])dl=0(&|$)/, '$1dl=1$2'),
+      version: str(b.download?.version, 20), size: str(b.download?.size, 20),
+      sha256: (() => { const h = str(b.download?.sha256, 80).toLowerCase(); if (h && !/^[0-9a-f]{64}$/.test(h)) throw new HttpError('Die SHA-256-Prüfsumme muss 64 Zeichen lang sein (0–9, a–f).'); return h; })()
+    },
     updated_at: now(), updated_by: me.id
   };
   const changes = [];
@@ -1046,6 +1053,7 @@ async function saveLauncher({ request, env }) {
   if (s.releaseDate !== old.releaseDate) changes.push(s.releaseDate ? 'Release-Datum gesetzt' : 'Release-Datum entfernt');
   if (s.notice.text !== old.notice.text) changes.push(s.notice.text ? 'Hinweis geändert' : 'Hinweis entfernt');
   if (JSON.stringify(s.news) !== JSON.stringify(old.news) || s.newsSource !== old.newsSource) changes.push('News geändert');
+  if (s.download.url !== old.download.url || s.download.version !== old.download.version) changes.push(`Download auf Version ${s.download.version || '?'} gesetzt`);
   await db.batch([
     db.prepare("INSERT INTO settings (key, value) VALUES ('launcher', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(s)),
     act(db, me, 'team', 'launcher', null, `hat den Launcher geändert${changes.length ? ': ' + changes.join(', ') : ''}`)
