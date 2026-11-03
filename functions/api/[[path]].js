@@ -429,9 +429,21 @@ const PANEL_SCHEMA = [
   `CREATE INDEX IF NOT EXISTS idx_checks_task ON dev_checks(task_id)`
 ];
 let schemaReady = false;
+// Neue Spalten für bestehende Tabellen (ältere Datenbanken bekommen sie automatisch nachgerüstet)
+const COLUMN_MIGRATIONS = [
+  ['dev_milestones', 'start_date', 'TEXT'], ['dev_milestones', 'end_date', 'TEXT'], ['dev_milestones', 'goal', 'TEXT'],
+  ['dev_milestones', 'owner_id', 'INTEGER'], ['dev_milestones', 'public', 'INTEGER NOT NULL DEFAULT 0']
+];
 async function ensureSchema(db) {
   if (schemaReady) return;
   await db.batch(PANEL_SCHEMA.map((s) => db.prepare(s)));
+  const tables = [...new Set(COLUMN_MIGRATIONS.map((m) => m[0]))];
+  for (const t of tables) {
+    const cols = new Set((await all(db.prepare(`PRAGMA table_info(${t})`))).map((c) => c.name));
+    for (const [tt, col, type] of COLUMN_MIGRATIONS) if (tt === t && !cols.has(col)) {
+      try { await db.prepare(`ALTER TABLE ${t} ADD COLUMN ${col} ${type}`).run(); } catch (e) { if (!/duplicate column/i.test(String(e))) throw e; }
+    }
+  }
   schemaReady = true;
 }
 
@@ -742,7 +754,7 @@ async function getDev({ request, env }) {
         (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id) AS checks,
         (SELECT COUNT(*) FROM dev_checks h WHERE h.task_id = t.id AND h.done = 1) AS checks_done
       FROM dev_tasks t LEFT JOIN admins a ON a.id = t.assignee_id LEFT JOIN admins c ON c.id = t.created_by ORDER BY t.updated_at DESC`)),
-    all(db.prepare('SELECT * FROM dev_milestones ORDER BY sort, target IS NULL, target, id')),
+    all(db.prepare('SELECT m.*, a.name AS owner_name FROM dev_milestones m LEFT JOIN admins a ON a.id = m.owner_id ORDER BY m.sort, m.start_date IS NULL, m.start_date, m.id')),
     all(db.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name'))
   ]);
   return json({ tasks, milestones, team, statuses: TASK_STATUS, priorities: TASK_PRIO, categories: TASK_CAT });
@@ -862,17 +874,23 @@ function msFields(b, old = {}) {
     body: has(b, 'body') ? str(b.body, 2000) : old.body ?? '',
     target: has(b, 'target') ? str(b.target, 40) : old.target ?? '',
     status: has(b, 'status') ? pick(b.status, MS_STATUS, 'geplant') : old.status ?? 'geplant',
-    sort: has(b, 'sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0
+    sort: has(b, 'sort') ? (parseInt(b.sort, 10) || 0) : old.sort ?? 0,
+    start_date: has(b, 'start_date') ? dateOrNull(b.start_date) : old.start_date ?? null,
+    end_date: has(b, 'end_date') ? dateOrNull(b.end_date) : old.end_date ?? null,
+    goal: has(b, 'goal') ? str(b.goal, 1000) : old.goal ?? '',
+    owner_id: has(b, 'owner_id') ? idOrNull(b.owner_id) : old.owner_id ?? null,
+    public: has(b, 'public') ? (b.public && b.public !== 'false' && b.public !== '0' ? 1 : 0) : old.public ?? 0
   };
   if (!m.title || len(m.title) < 2) throw new HttpError('Gib dem Meilenstein einen Namen.');
+  if (m.start_date && m.end_date && m.end_date < m.start_date) throw new HttpError('Das Ende liegt vor dem Start.');
   return m;
 }
 async function createMilestone({ request, env }) {
   const me = await requireAdmin(request, env);
   const db = env.DB, m = msFields(await readBody(request));
   if (!m.sort) m.sort = ((await db.prepare('SELECT MAX(sort) AS s FROM dev_milestones').first())?.s || 0) + 1;
-  const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(m.title, m.body, m.target || null, m.status, m.sort, now()).run();
+  const r = await db.prepare('INSERT INTO dev_milestones (title, body, target, status, sort, created_at, start_date, end_date, goal, owner_id, public) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(m.title, m.body, m.target || null, m.status, m.sort, now(), m.start_date, m.end_date, m.goal, m.owner_id, m.public).run();
   await act(db, me, 'dev', 'milestone', r.meta.last_row_id, `hat den Meilenstein ${q(m.title)} angelegt`).run();
   return json({ ok: true, id: r.meta.last_row_id }, 201);
 }
@@ -883,7 +901,7 @@ async function updateMilestone({ request, env, params }) {
   if (!old) throw new HttpError('Diesen Meilenstein gibt es nicht mehr.', 404);
   const m = msFields(await readBody(request), old);
   await db.batch([
-    db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ? WHERE id = ?').bind(m.title, m.body, m.target || null, m.status, m.sort, old.id),
+    db.prepare('UPDATE dev_milestones SET title = ?, body = ?, target = ?, status = ?, sort = ?, start_date = ?, end_date = ?, goal = ?, owner_id = ?, public = ? WHERE id = ?').bind(m.title, m.body, m.target || null, m.status, m.sort, m.start_date, m.end_date, m.goal, m.owner_id, m.public, old.id),
     act(db, me, 'dev', 'milestone', old.id, m.status !== old.status && m.status === 'fertig' ? `hat den Meilenstein ${q(m.title)} abgeschlossen 🎉` : `hat den Meilenstein ${q(m.title)} bearbeitet`)
   ]);
   return json({ ok: true });
@@ -895,6 +913,16 @@ async function deleteMilestone({ request, env, params }) {
   if (!old) return json({ ok: true });
   await db.batch([db.prepare('UPDATE dev_tasks SET milestone_id = NULL WHERE milestone_id = ?').bind(id), db.prepare('DELETE FROM dev_milestones WHERE id = ?').bind(id), act(db, me, 'dev', 'milestone', id, `hat den Meilenstein ${q(old.title)} gelöscht`)]);
   return json({ ok: true });
+}
+
+// Öffentliche Roadmap für die Website: nur Meilensteine mit „Auf der Website zeigen“, ohne interne Aufgaben
+async function getPublicRoadmap({ env }) {
+  const db = env.DB; await ensureSchema(db);
+  const rows = await all(db.prepare(`SELECT m.id, m.title, m.body, m.goal, m.target, m.status, m.start_date, m.end_date,
+      (SELECT COUNT(*) FROM dev_tasks t WHERE t.milestone_id = m.id) AS total,
+      (SELECT COUNT(*) FROM dev_tasks t WHERE t.milestone_id = m.id AND t.status = 'fertig') AS done
+    FROM dev_milestones m WHERE m.public = 1 ORDER BY m.sort, m.start_date IS NULL, m.start_date, m.id`));
+  return new Response(JSON.stringify({ rows }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=60' } });
 }
 
 // ---------------------------------------------------------------- Dev: Scripts / Ressourcen
@@ -1429,6 +1457,61 @@ async function getStats({ request, env, url }) {
   return json({ days, rows, daily, totals });
 }
 
+// ---------------------------------------------------------------- Regelwerk (im Panel bearbeitbar, Website lädt die neueste Version)
+PANEL_SCHEMA.push(`CREATE TABLE IF NOT EXISTS rules_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, data TEXT NOT NULL, note TEXT, admin_id INTEGER, created_at TEXT NOT NULL)`);
+const PENALTY_COLORS = ['#4fe0a0', '#ffc04f', '#ff7a45', '#ff4f6a', '#7aa8ff', '#b47cff'];
+function cleanRules(b) {
+  const chapters = (Array.isArray(b.chapters) ? b.chapters : []).slice(0, 40).map((c) => ({
+    title: str(c.title, 80),
+    rules: (Array.isArray(c.rules) ? c.rules : []).slice(0, 80).map((r) => ({ title: str(r.title, 120), text: str(r.text, 3000) })).filter((r) => r.title || r.text)
+  })).filter((c) => c.title || c.rules.length);
+  if (!chapters.length) throw new HttpError('Das Regelwerk braucht mindestens ein Kapitel.');
+  for (const [i, c] of chapters.entries()) {
+    if (!c.title) throw new HttpError(`Kapitel ${i + 1} hat keinen Namen.`);
+    for (const [j, r] of c.rules.entries()) if (!r.title || !r.text) throw new HttpError(`§ ${i + 1}.${j + 1} braucht eine Überschrift und einen Text.`);
+  }
+  const penalties = (Array.isArray(b.penalties) ? b.penalties : []).slice(0, 12).map((p) => ({
+    label: str(p.label, 80), example: str(p.example, 200), color: PENALTY_COLORS.includes(p.color) ? p.color : PENALTY_COLORS[0]
+  })).filter((p) => p.label);
+  return { stand: dateOrNull(b.stand) || now().slice(0, 10), intro: str(b.intro, 600), chapters, penalties };
+}
+async function latestRules(db) {
+  const row = await db.prepare('SELECT v.*, a.name AS admin_name FROM rules_versions v LEFT JOIN admins a ON a.id = v.admin_id ORDER BY v.id DESC LIMIT 1').first();
+  if (!row) return null;
+  let data = null; try { data = JSON.parse(row.data); } catch {}
+  return { id: row.id, data, note: row.note, admin_name: row.admin_name, created_at: row.created_at };
+}
+async function getPublicRules({ env }) {
+  await ensureSchema(env.DB);
+  const v = await latestRules(env.DB);
+  return new Response(JSON.stringify({ rules: v ? v.data : null, updated_at: v ? v.created_at : null }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' } });
+}
+async function getRulesAdmin({ request, env }) {
+  await requireAdmin(request, env);
+  const db = env.DB;
+  const versions = await all(db.prepare('SELECT v.id, v.note, v.created_at, a.name AS admin_name FROM rules_versions v LEFT JOIN admins a ON a.id = v.admin_id ORDER BY v.id DESC LIMIT 30'));
+  return json({ current: await latestRules(db), versions, colors: PENALTY_COLORS });
+}
+async function getRulesVersion({ request, env, params }) {
+  await requireAdmin(request, env);
+  const row = await env.DB.prepare('SELECT data FROM rules_versions WHERE id = ?').bind(Number(params.id)).first();
+  if (!row) throw new HttpError('Diese Version gibt es nicht.', 404);
+  return json({ data: JSON.parse(row.data) });
+}
+async function saveRules({ request, env, ctx }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, b = await readBody(request);
+  const data = cleanRules(b), note = str(b.note, 200);
+  const count = data.chapters.reduce((n, c) => n + c.rules.length, 0);
+  await db.batch([
+    db.prepare('INSERT INTO rules_versions (data, note, admin_id, created_at) VALUES (?, ?, ?, ?)').bind(JSON.stringify(data), note, me.id, now()),
+    db.prepare("DELETE FROM rules_versions WHERE id NOT IN (SELECT id FROM rules_versions ORDER BY id DESC LIMIT 50)"),
+    act(db, me, 'team', 'rules', null, `hat das Regelwerk veröffentlicht (${data.chapters.length} Kapitel, ${count} Regeln)${note ? ': ' + note : ''}`)
+  ]);
+  if (b.announce) await discordNotify(env, ctx, { title: '📜 Das Regelwerk wurde aktualisiert', color: 0xff4fb3, url: siteLink(env, '/regelwerk.html'), description: (note ? `**Was ist neu:** ${note}\n\n` : '') + `Stand: ${data.stand.split('-').reverse().join('.')}. Bitte lest euch die Änderungen durch.` });
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -1450,6 +1533,11 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['GET', 'rules', getPublicRules],
+  ['GET', 'admin/rules', getRulesAdmin],
+  ['GET', 'admin/rules/versions/:id', getRulesVersion],
+  ['POST', 'admin/rules', saveRules],
+  ['GET', 'roadmap', getPublicRoadmap],
   ['GET', 'admin/teamlist', getTeamList],
   ['GET', 'admin/teamlist/:id', getTeamMember],
   ['PUT', 'admin/teamlist/:id', saveTeamProfile],

@@ -80,6 +80,7 @@ aside{position:sticky;top:calc(env(safe-area-inset-top,0px) + 86px);align-self:s
 .rule h3{font:800 19px/1.3 var(--heavy);text-transform:none;margin-bottom:4px}
 .rule p{margin:0;color:var(--muted);max-width:68ch}
 .rule p + p{margin-top:8px}
+.pen-intro{margin:0 0 14px;color:var(--muted)}
 mark{background:#ff4fb355;color:var(--fg);border-radius:3px;padding:0 2px}
 .empty{padding:40px 0;color:var(--muted)}
 
@@ -101,7 +102,7 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
 
 <div class="rls-nav" role="navigation"><div class="rls-in">
   <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
-  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
   <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
   <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div></div>
@@ -199,28 +200,43 @@ footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:spac
 
 <footer class="rls-foot"><div class="rls-in">
   <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
-  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
 </div></footer>
 
 <script>
-// Suche
-const q=document.getElementById('q'),rules=[...document.querySelectorAll('.rule')],chapters=[...document.querySelectorAll('.chapter')],empty=document.getElementById('empty');
-rules.forEach(r=>r.querySelectorAll('h3,p').forEach(el=>el.dataset.raw=el.textContent));
-const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-q.addEventListener('input',()=>{
-  const v=q.value.trim(),re=v?new RegExp(esc(v),'gi'):null;let any=false;
-  rules.forEach(r=>{
-    const els=r.querySelectorAll('h3,p'),txt=[...els].map(e=>e.dataset.raw).join(' ')+r.querySelector('.p').textContent;
-    const hit=!re||re.test(txt);re&&(re.lastIndex=0);r.hidden=!hit;any=any||hit;
-    els.forEach(e=>{e.textContent=e.dataset.raw;if(re&&hit)e.innerHTML=e.textContent.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])).replace(new RegExp(esc(v.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))),'gi'),m=>'<mark>'+m+'</mark>')});
-  });
-  chapters.forEach(c=>{const vis=c.querySelectorAll('.rule:not([hidden])').length;c.hidden=!vis;const t=c.querySelector('.tbl');if(t)t.hidden=!!v});
-  empty.hidden=any;
-});
-// Aktives Kapitel im Inhaltsverzeichnis
-const links=[...document.querySelectorAll('#toc a')];
-const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))}}),{rootMargin:'-30% 0px -60% 0px'});
-chapters.forEach(c=>io.observe(c));
+// Regelwerk aus dem Team-Panel laden. Ist dort noch nichts veröffentlicht, bleibt das Regelwerk unten in dieser Datei stehen.
+const H=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function renderRules(d){
+  const main=document.getElementById('rules'),toc=document.getElementById('toc'),pad=n=>String(n).padStart(2,'0');
+  const hasPen=d.penalties&&d.penalties.length;
+  toc.innerHTML=d.chapters.map((c,i)=>`<li><a href="#k${i+1}"><span>${pad(i+1)}</span>${H(c.title)}</a></li>`).join('')+(hasPen?'<li><a href="#strafen"><span>§</span>Strafkatalog</a></li>':'');
+  const pen=hasPen?`<section class="chapter pen" id="strafen"><h2><span class="n">§</span>Strafkatalog</h2><p class="pen-intro">Strafen richten sich nach Schwere und Wiederholung. Das Team kann Stufen überspringen.</p><div class="tbl"><table class="strafen"><thead><tr><th>Stufe</th><th>Strafe</th><th>Beispiel</th></tr></thead><tbody>${d.penalties.map((p,k)=>`<tr><td><span class="lv" style="background:${/^#[0-9a-f]{6}$/i.test(p.color)?p.color:'#4fe0a0'}"></span>${k+1}</td><td>${H(p.label)}</td><td>${H(p.example)}</td></tr>`).join('')}</tbody></table></div></section>`:'';
+  main.innerHTML=d.chapters.map((c,i)=>`<section class="chapter" id="k${i+1}"><h2><span class="n">${pad(i+1)}</span>${H(c.title)}</h2>${c.rules.map((r,j)=>`<div class="rule" id="r${i+1}-${j+1}"><a class="p" href="#r${i+1}-${j+1}">§ ${i+1}.${j+1}</a><div><h3>${H(r.title)}</h3><p>${H(r.text).replace(/\n/g,'<br>')}</p></div></div>`).join('')}</section>`).join('')+pen+'<p class="empty" id="empty" hidden>Keine Regel gefunden. Versuch einen anderen Begriff oder frag im Discord-Support.</p>';
+  const intro=document.querySelector('header .wrap > p');if(intro&&d.intro)intro.textContent=d.intro;
+  const meta=document.querySelector('header .meta');if(meta)meta.innerHTML=`<span class="pill">Stand <b>${H(d.stand.split('-').reverse().join('.'))}</b></span><span class="pill">${d.chapters.length} Kapitel</span><span class="pill">${d.chapters.reduce((n,c)=>n+c.rules.length,0)} Regeln</span><span class="pill">Gilt für alle Spieler</span>`;
+}
+function initRules(){
+  // Suche
+  const q=document.getElementById('q'),rules=[...document.querySelectorAll('.rule')],chapters=[...document.querySelectorAll('.chapter')],empty=document.getElementById('empty');
+  rules.forEach(r=>r.querySelectorAll('h3,p').forEach(el=>el.dataset.raw=el.textContent));
+  const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  q.oninput=()=>{
+    const v=q.value.trim(),re=v?new RegExp(esc(v),'gi'):null;let any=false;
+    rules.forEach(r=>{
+      const els=r.querySelectorAll('h3,p'),txt=[...els].map(e=>e.dataset.raw).join(' ')+r.querySelector('.p').textContent;
+      const hit=!re||re.test(txt);re&&(re.lastIndex=0);r.hidden=!hit;any=any||hit;
+      els.forEach(e=>{e.textContent=e.dataset.raw;if(re&&hit)e.innerHTML=H(e.textContent).replace(new RegExp(esc(H(v)),'gi'),m=>'<mark>'+m+'</mark>')});
+    });
+    chapters.forEach(c=>{const vis=c.querySelectorAll('.rule:not([hidden])').length;c.hidden=c.classList.contains('pen')?!!v:!vis;const t=c.querySelector('.tbl');if(t)t.hidden=!!v});
+    empty.hidden=any;
+  };
+  // Aktives Kapitel im Inhaltsverzeichnis
+  const links=[...document.querySelectorAll('#toc a')];
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))}}),{rootMargin:'-30% 0px -60% 0px'});
+  chapters.forEach(c=>io.observe(c));
+  if(location.hash){const t=document.getElementById(location.hash.slice(1));if(t)t.scrollIntoView();}
+}
+fetch('/api/rules').then(r=>r.ok?r.json():null).then(d=>{if(d&&d.rules&&d.rules.chapters&&d.rules.chapters.length)renderRules(d.rules)}).catch(()=>{}).finally(initRules);
 </script>
 <script src="site.js"></script>
 </body>

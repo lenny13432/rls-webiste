@@ -54,6 +54,7 @@ Die Datenbank bleibt dabei unverändert.
 
 ## Team-Panel (`/admin/`)
 **Admin:** Übersicht mit Pinnwand und Live-Aktivität, Bewerbungen, Spielerakten (Verwarnungen, Kicks, Bans mit Dauer), Website-News (erscheinen automatisch auf der Startseite), Team-Konten, Protokoll aller Änderungen, Einstellungen.
+**Regelwerk:** Kapitel, Paragraphen und Strafkatalog im Panel unter „Regelwerk“ bearbeiten und veröffentlichen, mit Versionsverlauf. Die Seite regelwerk.html lädt automatisch die neueste Version.
 **Team:** Teamliste mit Rängen, Bereichen, Probezeit und Einarbeitungs-Checkliste, Teamakte (Lob, Hinweis, Team-Verwarnung), Kalender mit Zu-/Absagen, Tagesordnung und Meeting-Protokoll, Abwesenheiten, Abstimmungen, Textbausteine, Team-Statistik.
 **Dev:** To-do-Board (Ziehen oder Pfeile), Aufgaben mit Checkliste und Kommentaren, Roadmap mit Meilensteinen, Bug-Tracker, Scripts-Liste, Wiki.
 **Live:** Änderungen anderer Teammitglieder erscheinen nach wenigen Sekunden von selbst, inklusive „Gerade online“. **Strg + K** öffnet die Schnellsuche.

@@ -23,13 +23,14 @@ async function showDev(tab, openId) {
   app.innerHTML = `<div class="wrap admin-main dev">
     <div class="admin-head"><h1><span class="script">${tab === 'roadmap' ? 'Wohin geht die Reise?' : 'Was wird gebaut?'}</span>${tab === 'roadmap' ? 'Roadmap' : 'To-do-Board'}</h1>
       <div class="row"><button class="btn btn-ghost sm" id="addMs">+ Meilenstein</button><button class="btn btn-pink sm" id="addTask">+ Aufgabe</button></div></div>
-    <div class="dev-stats">
+    ${tab === 'roadmap' ? (() => { const M = d.milestones, nx = M.filter((m) => m.status !== 'fertig').sort((a, b) => (a.end_date || a.start_date || '9').localeCompare(b.end_date || b.start_date || '9'))[0]; const nd = nx && (nx.end_date || nx.start_date); const days = nd ? Math.round((new Date(nd + 'T12:00') - new Date(today() + 'T12:00')) / 864e5) : null;
+      return `<div class="dev-stats"><div><b>${M.length}</b><span>Meilensteine</span></div><div><b>${M.filter((m) => m.status === 'arbeit').length}</b><span>In Arbeit</span></div><div><b>${M.filter((m) => m.status === 'fertig').length}</b><span>Abgeschlossen</span></div><div class="${days !== null && days < 0 ? 'late' : ''}"><b>${days === null ? '–' : days < 0 ? Math.abs(days) + ' T' : days + ' T'}</b><span>${days === null ? 'Nächster Termin' : days < 0 ? 'überfällig' : 'bis zum nächsten Ziel'}</span></div><div class="dev-pct"><b>${nx ? esc(nx.title) : 'Alles erledigt'}</b><span>Nächster Meilenstein</span><i style="--p:${pct}%"></i></div></div>`; })() : `<div class="dev-stats">
       <div><b>${n(['idee', 'todo'])}</b><span>Offen</span></div>
       <div><b>${n(['arbeit', 'test'])}</b><span>In Arbeit</span></div>
       <div><b>${done}</b><span>Erledigt</span></div>
       <div class="${late ? 'late' : ''}"><b>${late}</b><span>Überfällig</span></div>
       <div class="dev-pct"><b>${pct}%</b><span>Fortschritt gesamt</span><i style="--p:${pct}%"></i></div>
-    </div>
+    </div>`}
     ${!total && !d.milestones.length ? `<div class="empty dev-empty"><p>Noch nichts geplant. Leg los mit <b>+ Aufgabe</b> oder lade eine Beispiel-Roadmap für einen FiveM-Server, die ihr dann anpasst.</p><button class="btn btn-ghost sm" id="seedDev">Beispiel-Roadmap laden</button></div>` : ''}
     <div id="devView"></div></div>`;
   $('addTask').onclick = () => taskDialog();
@@ -112,35 +113,6 @@ async function moveTask(id, status) {
   catch (e) { t.status = prev; renderBoard(); toast(e.message, 'bad'); }
 }
 
-function renderRoadmap() {
-  const d = DEV.data;
-  const loose = d.tasks.filter((t) => !t.milestone_id);
-  $('devView').innerHTML = !d.milestones.length
-    ? `<div class="empty">Noch keine Meilensteine. Mit <b>+ Meilenstein</b> legst du z. B. „Closed Beta“ oder „Release“ an.</div>`
-    : `<ol class="roadmap">${d.milestones.map((m) => {
-      const ts = d.tasks.filter((t) => t.milestone_id === m.id).sort((a, b) => Object.keys(DEV.ST).indexOf(b.status) - Object.keys(DEV.ST).indexOf(a.status));
-      const dn = ts.filter((t) => t.status === 'fertig').length;
-      const p = ts.length ? Math.round(dn / ts.length * 100) : (m.status === 'fertig' ? 100 : 0);
-      return `<li class="rm rm-${m.status}">
-        <div class="rm-dot"></div>
-        <div class="card rm-card">
-          <div class="rm-top"><span class="rm-when">${esc(m.target || 'Ohne Termin')}</span><span class="pill ms-${m.status}">${DEV.MS[m.status]}</span><button class="btn btn-ghost sm" data-ems="${m.id}">Bearbeiten</button></div>
-          <h3>${esc(m.title)}</h3>
-          ${m.body ? `<p class="muted">${nl(m.body)}</p>` : ''}
-          <div class="rm-bar"><i style="width:${p}%"></i></div>
-          <p class="rm-count">${dn} von ${ts.length} Aufgaben erledigt · ${p}%</p>
-          ${ts.length ? `<ul class="rm-tasks">${ts.map((t) => `<li data-tid="${t.id}" class="s-${t.status}"><span class="sdot s-${t.status}"></span>${esc(t.title)}<small>${DEV.ST[t.status]}${t.assignee_name ? ' · ' + esc(t.assignee_name) : ''}</small></li>`).join('')}</ul>` : ''}
-          <button class="btn btn-ghost sm" data-addto="${m.id}">+ Aufgabe für diesen Meilenstein</button>
-        </div></li>`;
-    }).join('')}</ol>
-    ${loose.length ? `<p class="muted" style="margin-top:20px">${loose.length} Aufgabe${loose.length === 1 ? '' : 'n'} ohne Meilenstein, zu finden im <a href="#dev" style="color:var(--pink)">To-do-Board</a>.</p>` : ''}`;
-  $('devView').onclick = (e) => {
-    const em = e.target.closest('[data-ems]'); if (em) return msDialog(d.milestones.find((m) => m.id === +em.dataset.ems));
-    const at = e.target.closest('[data-addto]'); if (at) return taskDialog(null, 'todo', +at.dataset.addto);
-    const li = e.target.closest('[data-tid]'); if (li) taskDialog(d.tasks.find((t) => t.id === +li.dataset.tid));
-  };
-}
-
 // ---------------------------------------------------------------- Aufgabe: Dialog mit Checkliste & Kommentaren
 async function taskDialog(t, status = 'todo', msId = '', category = '') {
   if (!DEV.data) { try { await loadDev(); } catch { return; } }
@@ -193,19 +165,117 @@ async function loadTaskExtra(id, mark) {
   $('cmText').onkeydown = (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); sendCm(); } };
 }
 
+// ---------------------------------------------------------------- Roadmap: Zeitleiste + Meilenstein-Karten
+const RM = { f: 'alle' };
+const dIso = (s) => s ? new Date(s + 'T12:00') : null;
+const dFmt = (s) => s ? s.split('-').reverse().join('.') : '';
+const daysBetween = (a, b) => Math.round((dIso(b) - dIso(a)) / 864e5);
+const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+function msInfo(m, tasks) {
+  const ts = tasks.filter((t) => t.milestone_id === m.id);
+  const dn = ts.filter((t) => t.status === 'fertig').length;
+  const p = ts.length ? Math.round(dn / ts.length * 100) : (m.status === 'fertig' ? 100 : 0);
+  const t0 = today();
+  let when = '', cls = '';
+  if (m.status === 'fertig') { when = 'abgeschlossen'; cls = 'ok'; }
+  else if (m.end_date && m.end_date < t0) { when = `${daysBetween(m.end_date, t0)} Tage überfällig`; cls = 'bad'; }
+  else if (m.start_date && m.start_date > t0) { const n = daysBetween(t0, m.start_date); when = n === 1 ? 'startet morgen' : `startet in ${n} Tagen`; }
+  else if (m.end_date) { const n = daysBetween(t0, m.end_date); when = n === 0 ? 'endet heute' : `noch ${n} Tag${n === 1 ? '' : 'e'}`; cls = n <= 7 ? 'warn' : ''; }
+  const range = m.start_date && m.end_date && m.start_date !== m.end_date ? `${dFmt(m.start_date)} – ${dFmt(m.end_date)}` : (m.end_date || m.start_date) ? dFmt(m.end_date || m.start_date) : (m.target || 'Ohne Termin');
+  return { ts, dn, p, when, cls, range };
+}
+const ring = (p, st) => `<svg class="ring" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18" class="ring-bg"/><circle cx="22" cy="22" r="18" class="ring-fg ms-ring-${st}" stroke-dasharray="${(p / 100 * 113.1).toFixed(1)} 113.1" transform="rotate(-90 22 22)"/><text x="22" y="26" text-anchor="middle">${p}%</text></svg>`;
+
+function gantt(ms, tasks) {
+  const dated = ms.filter((m) => m.start_date || m.end_date);
+  if (!dated.length) return `<div class="card gantt-empty"><b>Noch keine Zeitleiste.</b> Trag bei deinen Meilensteinen Start und Ende ein, dann erscheinen sie hier als Balken mit Heute-Linie.</div>`;
+  const t0 = today();
+  const starts = dated.map((m) => m.start_date || m.end_date), ends = dated.map((m) => m.end_date || m.start_date);
+  let lo = [...starts, t0].sort()[0], hi = [...ends, t0].sort().at(-1);
+  const a = dIso(lo), b = dIso(hi);
+  const from = new Date(a.getFullYear(), a.getMonth(), 1), to = new Date(b.getFullYear(), b.getMonth() + 1, 1);
+  const span = (to - from) / 864e5;
+  const X = (s) => Math.max(0, Math.min(100, (dIso(s) - from) / 864e5 / span * 100));
+  const months = []; for (let d = new Date(from); d < to; d.setMonth(d.getMonth() + 1)) months.push(new Date(d));
+  const todayX = X(t0);
+  return `<section class="card gantt">
+    <div class="g-head"><span class="g-label"></span><div class="g-track g-months">${months.map((d) => { const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; return `<span style="left:${X(k)}%">${MONTHS.at(d.getMonth())} ${String(d.getFullYear()).slice(2)}</span>`; }).join('')}<b class="g-now-l" style="left:${todayX}%">Heute</b></div></div>
+    ${dated.map((m) => {
+      const i = msInfo(m, tasks), s = m.start_date || m.end_date, e = m.end_date || m.start_date, one = s === e;
+      const left = X(s), width = Math.max(X(e) + (one ? 0 : 100 / span) - left, 0.8);
+      return `<div class="g-row" data-goms="${m.id}"><span class="g-label"><b>${esc(m.title)}</b><small>${esc(i.range)}</small></span>
+        <div class="g-track">${months.map((d) => { const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; return `<i class="g-grid" style="left:${X(k)}%"></i>`; }).join('')}<i class="g-now" style="left:${todayX}%"></i>
+          ${one ? `<span class="g-dia gs-${m.status}" style="left:${left}%" data-tip="${esc(m.title)} · ${dFmt(s)}"></span>`
+            : `<span class="g-bar gs-${m.status}" style="left:${left}%;width:${width}%" data-tip="${esc(m.title)} · ${esc(i.range)} · ${i.dn}/${i.ts.length} Aufgaben"><i style="width:${i.p}%"></i><em>${i.p}%</em></span>`}
+        </div></div>`;
+    }).join('')}
+    <div class="g-legend"><span><i class="gs-geplant"></i>Geplant</span><span><i class="gs-arbeit"></i>In Arbeit</span><span><i class="gs-fertig"></i>Fertig</span><span class="muted">Balkenfüllung = erledigte Aufgaben</span></div>
+  </section>`;
+}
+
+function renderRoadmap() {
+  const d = DEV.data;
+  const loose = d.tasks.filter((t) => !t.milestone_id);
+  const list = d.milestones.filter((m) => RM.f === 'alle' || (RM.f === 'aktiv' ? m.status !== 'fertig' : m.status === 'fertig'));
+  const pub = d.milestones.filter((m) => m.public).length;
+  const KEYS = Object.keys(DEV.ST);
+  $('devView').innerHTML = !d.milestones.length
+    ? `<div class="empty">Noch keine Meilensteine. Mit <b>+ Meilenstein</b> legst du z. B. „Closed Beta“ oder „Release“ an, mit Start, Ende und Ziel.</div>`
+    : `${gantt(d.milestones, d.tasks)}
+    <div class="toolbar rm-tools">${[['alle', 'Alle'], ['aktiv', 'Offen'], ['fertig', 'Abgeschlossen']].map(([v, l]) => `<button class="btn btn-ghost sm chip${RM.f === v ? ' on' : ''}" data-rmf="${v}">${l}</button>`).join('')}
+      <span class="spacer"></span><a class="btn btn-ghost sm" href="../roadmap.html" target="_blank" rel="noopener">🌐 Öffentliche Roadmap ${pub ? `(${pub})` : ''} ↗</a></div>
+    <ol class="roadmap">${list.map((m) => {
+      const i = msInfo(m, d.tasks);
+      const open = i.ts.filter((t) => t.status !== 'fertig').sort((a, b) => KEYS.indexOf(b.status) - KEYS.indexOf(a.status) || PRANK[a.priority] - PRANK[b.priority]);
+      const done = i.ts.filter((t) => t.status === 'fertig');
+      const counts = KEYS.map((k) => [k, i.ts.filter((t) => t.status === k).length]).filter(([, n]) => n);
+      const allDone = i.ts.length && !open.length && m.status !== 'fertig';
+      const row = (t) => `<li data-tid="${t.id}" class="s-${t.status}"><span class="sdot s-${t.status}"></span><span class="rt-t">${esc(t.title)}</span><small>${DEV.ST[t.status]}${t.assignee_name ? ' · ' + esc(t.assignee_name) : ''}</small></li>`;
+      return `<li class="rm rm-${m.status}" id="ms-${m.id}">
+        <div class="rm-dot"></div>
+        <div class="card rm-card">
+          <div class="rm-top"><span class="pill ms-${m.status}">${DEV.MS[m.status]}</span><span class="rm-when">${esc(i.range)}</span>${i.when ? `<span class="rm-cd ${i.cls}">${i.when}</span>` : ''}${m.public ? '<span class="tagx" title="Steht auf der öffentlichen Roadmap">🌐 öffentlich</span>' : ''}
+            <span class="spacer"></span>${m.owner_name ? `<span class="tname">${ava(m.owner_name)}<small>${esc(m.owner_name)}</small></span>` : ''}</div>
+          <div class="rm-main"><div class="rm-text"><h3>${esc(m.title)}</h3>${m.body ? `<p class="muted">${nl(m.body)}</p>` : ''}</div>${ring(i.p, m.status)}</div>
+          ${m.goal ? `<div class="rm-goal"><b>🎯 Fertig, wenn:</b> ${nl(m.goal)}</div>` : ''}
+          ${i.ts.length ? `<div class="rm-stack" aria-label="Aufgaben nach Status">${counts.map(([k, n]) => `<i class="sb-${k}" style="flex:${n}" data-tip="${DEV.ST[k]}: ${n}"></i>`).join('')}</div>
+            <p class="rm-count">${i.dn} von ${i.ts.length} Aufgaben erledigt · ${counts.map(([k, n]) => `${DEV.ST[k]} ${n}`).join(' · ')}</p>` : '<p class="rm-count">Noch keine Aufgaben zugeordnet.</p>'}
+          ${open.length ? `<ul class="rm-tasks">${open.map(row).join('')}</ul>` : ''}
+          ${done.length ? `<details class="rm-done"><summary>✓ ${done.length} erledigt</summary><ul class="rm-tasks">${done.map(row).join('')}</ul></details>` : ''}
+          <div class="row rm-act"><button class="btn btn-ghost sm" data-addto="${m.id}">+ Aufgabe</button><button class="btn btn-ghost sm" data-ems="${m.id}">Bearbeiten</button>
+            ${m.status === 'geplant' ? `<button class="btn btn-ghost sm" data-mst="${m.id}:arbeit">▶ Starten</button>` : ''}
+            ${allDone ? `<button class="btn btn-pink sm" data-mst="${m.id}:fertig">🎉 Alle Aufgaben fertig – abschließen</button>` : m.status === 'arbeit' && i.ts.length === 0 ? `<button class="btn btn-ghost sm" data-mst="${m.id}:fertig">Abschließen</button>` : ''}</div>
+        </div></li>`;
+    }).join('') || '<li class="muted">Keine Meilensteine in diesem Filter.</li>'}</ol>
+    ${loose.length ? `<p class="muted" style="margin-top:20px">${loose.length} Aufgabe${loose.length === 1 ? '' : 'n'} ohne Meilenstein, zu finden im <a href="#dev" style="color:var(--pink)">To-do-Board</a>.</p>` : ''}`;
+  $('devView').onclick = async (e) => {
+    const f = e.target.closest('[data-rmf]'); if (f) { RM.f = f.dataset.rmf; return renderRoadmap(); }
+    const g = e.target.closest('[data-goms]'); if (g) { const el = $('ms-' + g.dataset.goms); if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 1400); } return; }
+    const st = e.target.closest('[data-mst]'); if (st) { const [id, s] = st.dataset.mst.split(':'); await api('admin/dev/milestones/' + id, { method: 'PUT', body: { status: s } }); if (s === 'fertig') confetti(); toast(s === 'fertig' ? 'Meilenstein abgeschlossen!' : 'Meilenstein gestartet.'); return route(); }
+    const em = e.target.closest('[data-ems]'); if (em) return msDialog(d.milestones.find((m) => m.id === +em.dataset.ems));
+    const at = e.target.closest('[data-addto]'); if (at) return taskDialog(null, 'todo', +at.dataset.addto);
+    const li = e.target.closest('[data-tid]'); if (li) taskDialog(d.tasks.find((t) => t.id === +li.dataset.tid));
+  };
+}
+
 function msDialog(m) {
   const edit = !!m; m = m || { status: 'geplant' };
+  const team = DEV.data ? DEV.data.team : [];
   openDialog(`<form class="form main" style="gap:14px">${dlgHead(edit ? 'Meilenstein bearbeiten' : 'Neuer Meilenstein')}
-    <label class="field"><span>Name</span><input name="title" maxlength="80" required value="${esc(m.title || '')}" placeholder="z. B. Closed Beta"></label>
-    <div class="grid2">
-      <label class="field"><span>Wann? <small>(frei, z. B. „Januar 2027“)</small></span><input name="target" maxlength="40" value="${esc(m.target || '')}"></label>
+    <div class="grid2"><label class="field"><span>Name</span><input name="title" maxlength="80" required value="${esc(m.title || '')}" placeholder="z. B. Closed Beta"></label>
       <label class="field"><span>Status</span><select name="status">${opts(DEV.MS, m.status)}</select></label>
-    </div>
-    <label class="field"><span>Beschreibung <small>(optional)</small></span><textarea name="body" maxlength="2000" style="min-height:90px">${esc(m.body || '')}</textarea></label>
-    <label class="field"><span>Reihenfolge <small>(kleinere Zahl = weiter oben)</small></span><input name="sort" type="number" value="${esc(m.sort ?? '')}" style="max-width:140px"></label>
+      <label class="field"><span>Start</span><input type="date" name="start_date" value="${esc(m.start_date || '')}"></label>
+      <label class="field"><span>Ende / Termin</span><input type="date" name="end_date" value="${esc(m.end_date || '')}"></label>
+      <label class="field"><span>Verantwortlich</span><select name="owner_id"><option value="">Niemand</option>${opts(Object.fromEntries(team.map((p) => [p.id, p.name])), m.owner_id)}</select></label>
+      <label class="field"><span>Anzeige ohne Datum <small>(optional)</small></span><input name="target" maxlength="40" value="${esc(m.target || '')}" placeholder="z. B. Anfang 2027"></label></div>
+    <label class="field"><span>Beschreibung <small>(worum geht es?)</small></span><textarea name="body" maxlength="2000" style="min-height:80px">${esc(m.body || '')}</textarea></label>
+    <label class="field"><span>🎯 Fertig, wenn … <small>(woran erkennt ihr, dass der Meilenstein geschafft ist?)</small></span><textarea name="goal" maxlength="1000" style="min-height:70px" placeholder="z. B. 30 Beta-Tester waren eine Woche online, keine kritischen Bugs offen">${esc(m.goal || '')}</textarea></label>
+    <div class="grid2"><label class="chk"><input type="checkbox" name="public" ${m.public ? 'checked' : ''}> 🌐 Auf der öffentlichen Roadmap zeigen</label>
+      <label class="field"><span>Reihenfolge <small>(kleiner = weiter oben)</small></span><input name="sort" type="number" value="${esc(m.sort ?? '')}" style="max-width:140px"></label></div>
+    <p class="muted" style="margin:0;font-size:13px">Auf der Website stehen nur Name, Zeitraum, Beschreibung, Ziel und Fortschritt, nie die einzelnen Aufgaben.</p>
     <div class="dlg-foot">${edit && me.role === 'owner' ? '<button type="button" class="btn btn-ghost sm" data-del>Löschen</button>' : '<span></span>'}<button class="btn btn-pink" type="submit">${edit ? 'Speichern' : 'Meilenstein anlegen'}</button></div>
   </form>`, async (fd) => {
-    const body = Object.fromEntries(fd);
+    const body = Object.fromEntries(fd); body.public = fd.has('public');
     if (edit) await api('admin/dev/milestones/' + m.id, { method: 'PUT', body }); else await api('admin/dev/milestones', { method: 'POST', body });
     if (body.status === 'fertig' && m.status !== 'fertig') confetti();
     toast('Gespeichert.'); if (location.hash !== '#roadmap') location.hash = '#roadmap'; else route();
@@ -215,21 +285,21 @@ function msDialog(m) {
 async function seedDev() {
   const b = $('seedDev'); b.disabled = true; b.textContent = 'Wird angelegt…';
   const plan = [
-    ['Server-Grundlage', 'November 2026', 'arbeit', 'ESX, Datenbank, txAdmin und Sicherheit stehen.', [
+    ['Server-Grundlage', 'November 2026', 'arbeit', 'ESX, Datenbank, txAdmin und Sicherheit stehen.', ['2026-10-15', '2026-11-30', 'Server startet stabil, Team kann sich einloggen, Anti-Cheat ist aktiv.'], [
       ['ESX-Grundgerüst und Datenbank einrichten', 'Server', 'hoch', 'fertig'], ['txAdmin: Rechte und Whitelist für das Team', 'Server', 'normal', 'arbeit'],
       ['Anti-Cheat einbauen und testen', 'Server', 'kritisch', 'todo'], ['Regelwerk auf der Website fertig schreiben', 'Website', 'normal', 'fertig']]],
-    ['Jobs & Fraktionen', 'Dezember 2026', 'geplant', 'Staatliche Fraktionen und das Gründungssystem ingame.', [
+    ['Jobs & Fraktionen', 'Dezember 2026', 'geplant', 'Staatliche Fraktionen und das Gründungssystem ingame.', ['2026-12-01', '2026-12-31', 'LSPD, EMS und Mechaniker sind spielbar, eine Fraktion kann komplett gegründet werden.'], [
       ['LSPD: Dienst, Fahrzeuge, MDT', 'Fraktionen', 'hoch', 'todo'], ['EMS: Wiederbelebung und Krankenhaus', 'Fraktionen', 'hoch', 'todo'],
       ['Fraktion gründen: Bankkredit und Gebäude beim Rathaus beantragen', 'Script', 'normal', 'idee'], ['Mechaniker-Job mit Tuning', 'Script', 'normal', 'idee']]],
-    ['Closed Beta', 'Januar 2027', 'geplant', 'Ausgewählte Spieler testen, wir sammeln Bugs.', [
+    ['Closed Beta', 'Januar 2027', 'geplant', 'Ausgewählte Spieler testen, wir sammeln Bugs.', ['2027-01-04', '2027-01-31', '30 Beta-Tester waren eine Woche online, keine kritischen Bugs offen.'], [
       ['Beta-Tester im Discord auswählen', 'Discord', 'normal', 'idee'], ['Bug-Report-Kanal und Vorlage', 'Discord', 'niedrig', 'todo'], ['Performance-Test mit 50+ Spielern', 'Server', 'hoch', 'idee']]],
-    ['Release', 'Februar 2027', 'geplant', 'Server geht öffentlich online.', [
+    ['Release', 'Februar 2027', 'geplant', 'Server geht öffentlich online.', ['2027-02-14', '2027-02-14', 'Server ist öffentlich, Launcher freigegeben, Release im Discord angekündigt.'], [
       ['Launcher: finale Version veröffentlichen', 'Launcher', 'hoch', 'todo'], ['Countdown auf der Website auf das Release-Datum stellen', 'Website', 'normal', 'idee'], ['Release-Trailer', 'Sonstiges', 'normal', 'idee']]]
   ];
   try {
     for (let i = 0; i < plan.length; i++) {
-      const [title, target, status, body, tasks] = plan[i];
-      const ms = await api('admin/dev/milestones', { method: 'POST', body: { title, target, status, body, sort: i + 1 } });
+      const [title, target, status, body, [start_date, end_date, goal], tasks] = plan[i];
+      const ms = await api('admin/dev/milestones', { method: 'POST', body: { title, target, status, body, start_date, end_date, goal, public: true, sort: i + 1 } });
       for (const [tt, category, priority, st] of tasks) await api('admin/dev/tasks', { method: 'POST', body: { title: tt, category, priority, status: st, milestone_id: ms.id } });
     }
     toast('Beispiel-Roadmap angelegt. Passt sie einfach an.'); location.hash = '#roadmap'; route();
