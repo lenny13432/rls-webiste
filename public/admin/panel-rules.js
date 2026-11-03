@@ -45,7 +45,7 @@ async function showRules() {
           <p class="muted" style="font-size:12.5px;margin:8px 0 0">„Laden“ holt eine alte Version in den Editor. Live geht sie erst mit „Veröffentlichen“.</p></section>
       </aside></div>
     <div class="savebar" id="rwBar" ${imported && owner ? '' : 'hidden'}><input id="rwNote" maxlength="200" placeholder="Was hast du geändert? (optional, z. B. „§ 2.6 auf 30 Minuten angepasst“)">
-      <label class="chk"><input type="checkbox" id="rwAnn"> Im Discord ankündigen</label>
+      <label class="chk" title="${d.webhook ? 'Geht in euren Regelwerk-Kanal' : 'Erst unter Einstellungen → Discord-Kanäle einen Webhook eintragen'}"><input type="checkbox" id="rwAnn" ${d.webhook ? 'checked' : 'disabled'}> Im Discord ankündigen${d.webhook ? '' : ' <a href="#einstellungen" style="color:var(--pink)">(einrichten)</a>'}</label>
       <button class="btn btn-ghost sm" id="rwReset">Verwerfen</button><button class="btn btn-pink sm" id="rwSave">Veröffentlichen</button></div>
   </div>`;
   renderRulesEditor();
@@ -57,8 +57,10 @@ async function showRules() {
   $('rwSave').onclick = async () => {
     $('rwSave').disabled = true;
     try {
-      await api('admin/rules', { method: 'POST', body: { ...RW.data, note: $('rwNote').value.trim(), announce: $('rwAnn').checked } });
-      window.EDITING = false; RW.dirty = false; toast('Regelwerk veröffentlicht. Die Website zeigt es sofort.'); confetti(); showRules();
+      const r = await api('admin/rules', { method: 'POST', body: { ...RW.data, note: $('rwNote').value.trim(), announce: $('rwAnn').checked } });
+      window.EDITING = false; RW.dirty = false; toast('Regelwerk veröffentlicht. Die Website zeigt es sofort.'); confetti();
+      if (r.announced) toast(r.announced.ok ? 'Im Discord angekündigt.' : 'Discord: ' + r.announced.error, r.announced.ok ? '' : 'bad');
+      showRules();
     } catch (err) { toast(err.message, 'bad'); $('rwSave').disabled = false; }
   };
 }

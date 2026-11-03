@@ -582,7 +582,11 @@ async function showSettings() {
       <div id="rows" style="display:grid;gap:8px">${cfg.positions.map(row).join('')}</div>
       <button type="button" class="btn btn-ghost sm" id="addRow" style="justify-self:start">+ Bereich hinzufügen</button>
       <button class="btn btn-pink" type="submit" style="justify-self:start">Speichern</button>
-    </form></section></div>`;
+    </form></section>
+    <section class="card pad" style="margin-top:18px"><h2 style="font-size:26px;margin-bottom:6px">Discord-Kanäle</h2>
+      <p class="muted" style="margin-top:0">Webhook-Link aus Discord einfügen: Kanal → Einstellungen → Integrationen → Webhooks → „Webhook-URL kopieren“. Der Link wird nur hier in der Datenbank gespeichert, nie auf GitHub.</p>
+      <div id="whBox"><p class="muted">Wird geladen…</p></div></section></div>`;
+  loadWebhooks();
   const bindRemove = () => app.querySelectorAll('.icon-btn').forEach((b) => (b.onclick = () => b.closest('.set-row').remove()));
   bindRemove();
   $('addRow').onclick = () => { $('rows').insertAdjacentHTML('beforeend', row()); bindRemove(); $('rows').lastElementChild.querySelector('input').focus(); };
@@ -592,6 +596,32 @@ async function showSettings() {
     try { await api('admin/settings', { method: 'PUT', body: { open: $('s_open').checked, positions: pos } }); positions = pos; $('sMsg').innerHTML = alertBox('ok', 'Gespeichert. Das Formular zeigt die Änderung sofort.'); }
     catch (err) { $('sMsg').innerHTML = alertBox('bad', err.message); }
   };
+}
+
+async function loadWebhooks() {
+  let d; try { d = await api('admin/webhooks'); } catch (e) { if ($('whBox')) $('whBox').innerHTML = alertBox('bad', e.message); return; }
+  $('whBox').innerHTML = Object.entries(d.webhooks).map(([k, w]) => `<div class="wh" data-wh="${k}">
+    <div class="wh-head"><b>📜 ${esc(w.label)}</b>${w.set ? `<span class="pill st-angenommen">Verbunden</span><code>${esc(w.hint)}</code>` : w.fallback ? '<span class="pill st-pruefung">nutzt den allgemeinen Webhook</span>' : '<span class="pill st-abgelehnt">Nicht eingerichtet</span>'}</div>
+    <div class="wh-row"><input type="password" class="wh-in" placeholder="${w.set ? 'Neuen Link einfügen, um ihn zu ersetzen' : 'https://discord.com/api/webhooks/…'}" autocomplete="off" spellcheck="false">
+      <button class="btn btn-pink sm" data-whsave>Speichern</button>${w.set || w.fallback ? '<button class="btn btn-ghost sm" data-whtest>Test senden</button>' : ''}${w.set ? '<button class="btn btn-ghost sm" data-whdel>Entfernen</button>' : ''}</div>
+    <div class="wh-msg"></div></div>`).join('');
+  $('whBox').querySelectorAll('.wh').forEach((el) => {
+    const kind = el.dataset.wh, msg = el.querySelector('.wh-msg');
+    const done = (t, ok = true) => { msg.innerHTML = alertBox(ok ? 'ok' : 'bad', t); };
+    el.querySelector('[data-whsave]').onclick = async () => {
+      const url = el.querySelector('.wh-in').value.trim(); if (!url) return done('Bitte erst den Webhook-Link einfügen.', false);
+      try { await api('admin/webhooks/' + kind, { method: 'PUT', body: { url } }); toast('Discord-Kanal gespeichert.'); await loadWebhooks(); $('whBox').querySelector(`[data-wh="${kind}"] [data-whtest]`)?.click(); }
+      catch (e) { done(e.message, false); }
+    };
+    el.querySelector('[data-whtest]')?.addEventListener('click', async () => {
+      try { await api(`admin/webhooks/${kind}/test`, { method: 'POST', body: {} }); done('Test-Nachricht gesendet. Schau in deinen Discord-Kanal.'); }
+      catch (e) { done(e.message, false); }
+    });
+    el.querySelector('[data-whdel]')?.addEventListener('click', async (e) => {
+      const b = e.currentTarget; if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Wirklich?'; return; }
+      await api('admin/webhooks/' + kind, { method: 'PUT', body: { url: '' } }); toast('Discord-Kanal entfernt.'); loadWebhooks();
+    });
+  });
 }
 
 // ============================================================ Mein Konto

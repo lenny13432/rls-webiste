@@ -93,6 +93,20 @@ async function discordNotify(env, ctx, embed) {
   const p = fetch(env.DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body }).catch(() => {});
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p); else await p;
 }
+// Eigene Discord-Kanäle pro Thema: Webhook-Links liegen in der Datenbank (Panel → Einstellungen), nie im Code
+const WEBHOOK_RE = /^https:\/\/(?:(?:canary|ptb)\.)?discord(?:app)?\.com\/api\/webhooks\/\d{5,25}\/[\w-]{20,100}$/;
+const WEBHOOK_KINDS = { rules: 'Regelwerk-Ankündigungen' };
+async function getWebhook(env, kind) {
+  const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('webhook_' + kind).first();
+  return (row && row.value) || env['DISCORD_WEBHOOK_' + kind.toUpperCase()] || env.DISCORD_WEBHOOK || '';
+}
+async function sendWebhook(url, payload) {
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return r.ok ? { ok: true } : { ok: false, error: r.status === 404 ? 'Discord kennt diesen Webhook nicht (gelöscht?).' : `Discord hat mit Fehler ${r.status} geantwortet.` };
+  } catch { return { ok: false, error: 'Discord war nicht erreichbar.' }; }
+}
+const maskWebhook = (u) => { const m = String(u || '').match(/webhooks\/(\d+)\//); return m ? `…/webhooks/${m[1].slice(0, 4)}…${m[1].slice(-3)}/••••••` : ''; };
 const siteLink = (env, path) => (env.SITE_URL ? env.SITE_URL.replace(/\/$/, '') + path : undefined);
 
 // ---------------------------------------------------------------- Anmeldung
@@ -1490,7 +1504,7 @@ async function getRulesAdmin({ request, env }) {
   await requireAdmin(request, env);
   const db = env.DB;
   const versions = await all(db.prepare('SELECT v.id, v.note, v.created_at, a.name AS admin_name FROM rules_versions v LEFT JOIN admins a ON a.id = v.admin_id ORDER BY v.id DESC LIMIT 30'));
-  return json({ current: await latestRules(db), versions, colors: PENALTY_COLORS });
+  return json({ current: await latestRules(db), versions, colors: PENALTY_COLORS, webhook: !!(await getWebhook(env, 'rules')) });
 }
 async function getRulesVersion({ request, env, params }) {
   await requireAdmin(request, env);
@@ -1502,14 +1516,86 @@ async function saveRules({ request, env, ctx }) {
   const me = await requireAdmin(request, env, true);
   const db = env.DB, b = await readBody(request);
   const data = cleanRules(b), note = str(b.note, 200);
+  const prev = await latestRules(db);
   const count = data.chapters.reduce((n, c) => n + c.rules.length, 0);
   await db.batch([
     db.prepare('INSERT INTO rules_versions (data, note, admin_id, created_at) VALUES (?, ?, ?, ?)').bind(JSON.stringify(data), note, me.id, now()),
     db.prepare("DELETE FROM rules_versions WHERE id NOT IN (SELECT id FROM rules_versions ORDER BY id DESC LIMIT 50)"),
     act(db, me, 'team', 'rules', null, `hat das Regelwerk veröffentlicht (${data.chapters.length} Kapitel, ${count} Regeln)${note ? ': ' + note : ''}`)
   ]);
-  if (b.announce) await discordNotify(env, ctx, { title: '📜 Das Regelwerk wurde aktualisiert', color: 0xff4fb3, url: siteLink(env, '/regelwerk.html'), description: (note ? `**Was ist neu:** ${note}\n\n` : '') + `Stand: ${data.stand.split('-').reverse().join('.')}. Bitte lest euch die Änderungen durch.` });
+  let announced = null;
+  if (b.announce) {
+    const url = await getWebhook(env, 'rules');
+    if (!url) announced = { ok: false, error: 'Kein Discord-Kanal eingetragen (Einstellungen → Discord-Kanäle).' };
+    else {
+      const origin = new URL(request.url).origin;
+      const changes = diffRules(prev && prev.data, data);
+      const list = changes.length > 15 ? [...changes.slice(0, 15), `… und ${changes.length - 15} weitere Änderungen`] : changes;
+      const desc = [note ? `> ${note}` : '', list.length ? list.join('\n') : (prev ? 'Kleine Korrekturen an Formulierungen.' : 'Das Regelwerk ist jetzt online.'), '', `👉 **[Zum Regelwerk](${origin}/regelwerk.html)**`].filter((x, i) => x || i > 0).join('\n');
+      announced = await sendWebhook(url, {
+        username: 'Southland Regelwerk', avatar_url: origin + '/logo.png',
+        embeds: [{ title: '📜 Das Regelwerk wurde aktualisiert', url: origin + '/regelwerk.html', color: 0xff4fb3, description: desc.slice(0, 4000),
+          fields: [{ name: 'Stand', value: data.stand.split('-').reverse().join('.'), inline: true }, { name: 'Kapitel', value: String(data.chapters.length), inline: true }, { name: 'Regeln', value: String(count), inline: true }],
+          footer: { text: 'Real Life Southland · Unwissenheit schützt nicht vor Strafe' }, timestamp: now() }]
+      });
+    }
+  }
+  return json({ ok: true, announced });
+}
+
+// ---------- Webhook-Einstellungen (nur Owner)
+async function getWebhooks({ request, env }) {
+  await requireAdmin(request, env, true);
+  const out = {};
+  for (const [k, label] of Object.entries(WEBHOOK_KINDS)) {
+    const row = await env.DB.prepare('SELECT value FROM settings WHERE key = ?').bind('webhook_' + k).first();
+    out[k] = { label, set: !!(row && row.value), hint: maskWebhook(row && row.value), fallback: !(row && row.value) && !!(env['DISCORD_WEBHOOK_' + k.toUpperCase()] || env.DISCORD_WEBHOOK) };
+  }
+  return json({ webhooks: out });
+}
+async function saveWebhook({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const kind = String(params.kind || '');
+  if (!WEBHOOK_KINDS[kind]) throw new HttpError('Unbekannter Kanal.', 404);
+  const url = str((await readBody(request)).url, 300);
+  if (url && !WEBHOOK_RE.test(url)) throw new HttpError('Das ist kein gültiger Discord-Webhook-Link. Er beginnt mit https://discord.com/api/webhooks/…');
+  const db = env.DB;
+  await db.batch([
+    url ? db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind('webhook_' + kind, url)
+        : db.prepare('DELETE FROM settings WHERE key = ?').bind('webhook_' + kind),
+    act(db, me, 'team', 'settings', null, url ? `hat den Discord-Kanal für ${WEBHOOK_KINDS[kind]} eingerichtet` : `hat den Discord-Kanal für ${WEBHOOK_KINDS[kind]} entfernt`)
+  ]);
+  return json({ ok: true, hint: maskWebhook(url) });
+}
+async function testWebhook({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const kind = String(params.kind || '');
+  if (!WEBHOOK_KINDS[kind]) throw new HttpError('Unbekannter Kanal.', 404);
+  const url = await getWebhook(env, kind);
+  if (!url) throw new HttpError('Für diesen Kanal ist noch kein Webhook eingetragen.');
+  const origin = new URL(request.url).origin;
+  const r = await sendWebhook(url, { username: 'Southland Regelwerk', avatar_url: origin + '/logo.png', embeds: [{ title: '✅ Test erfolgreich', description: `Dieser Kanal bekommt ab jetzt die ${WEBHOOK_KINDS[kind]} von Real Life Southland.\nEingerichtet von ${me.name}.`, color: 0x4fe0a0, timestamp: now(), footer: { text: 'Real Life Southland · Team-Panel' } }] });
+  if (!r.ok) throw new HttpError(r.error, 502);
   return json({ ok: true });
+}
+
+// ---------- Was hat sich am Regelwerk geändert? (für die Discord-Nachricht)
+function diffRules(oldData, data) {
+  const lines = [];
+  const key = (t) => String(t || '').trim().toLowerCase();
+  const oldMap = new Map(), newMap = new Map();
+  (oldData?.chapters || []).forEach((c, i) => c.rules.forEach((r, j) => oldMap.set(key(r.title), { ...r, n: `${i + 1}.${j + 1}` })));
+  data.chapters.forEach((c, i) => c.rules.forEach((r, j) => newMap.set(key(r.title), { ...r, n: `${i + 1}.${j + 1}`, ch: c.title })));
+  const oldCh = new Set((oldData?.chapters || []).map((c) => key(c.title)));
+  data.chapters.forEach((c, i) => { if (oldData && !oldCh.has(key(c.title))) lines.push(`📂 Neues Kapitel **${i + 1}. ${c.title}**`); });
+  for (const [k, r] of newMap) {
+    const o = oldMap.get(k);
+    if (!o) lines.push(`🆕 **§ ${r.n} ${r.title}**`);
+    else if (o.text.trim() !== r.text.trim()) lines.push(`✏️ **§ ${r.n} ${r.title}** wurde geändert`);
+  }
+  for (const [k, o] of oldMap) if (!newMap.has(k)) lines.push(`🗑️ ~~§ ${o.n} ${o.title}~~ wurde gestrichen`);
+  if (JSON.stringify(oldData?.penalties || []) !== JSON.stringify(data.penalties) && oldData) lines.push('⚖️ Der Strafkatalog wurde angepasst');
+  return lines;
 }
 
 // ---------------------------------------------------------------- Router
@@ -1535,6 +1621,9 @@ const ROUTES = [
   ['GET', 'news', getPublicNews],
   ['GET', 'rules', getPublicRules],
   ['GET', 'admin/rules', getRulesAdmin],
+  ['GET', 'admin/webhooks', getWebhooks],
+  ['PUT', 'admin/webhooks/rules', (c) => saveWebhook({ ...c, params: { kind: 'rules' } })],
+  ['POST', 'admin/webhooks/rules/test', (c) => testWebhook({ ...c, params: { kind: 'rules' } })],
   ['GET', 'admin/rules/versions/:id', getRulesVersion],
   ['POST', 'admin/rules', saveRules],
   ['GET', 'roadmap', getPublicRoadmap],
