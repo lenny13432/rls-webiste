@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social Media', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 function setNav(view) {
   const logged = !!me;
   $('sb').hidden = !logged; $('mtop').hidden = !logged;
@@ -83,7 +83,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -185,6 +185,7 @@ function route(live) {
     case 'spieler': return showPlayers();
     case 'news': return showNews();
     case 'regelwerk': return showRules();
+    case 'social': return showSocials();
     case 'launcher': return showLauncher();
     case 'team': return showTeam();
     case 'teamliste': return showTeamList();

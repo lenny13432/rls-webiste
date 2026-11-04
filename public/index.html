@@ -294,7 +294,7 @@ footer a.flink{color:var(--muted)}
 
 <div class="rls-nav" role="navigation"><div class="rls-in">
   <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
-  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a></div>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
   <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
   <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div></div>
@@ -461,7 +461,7 @@ footer a.flink{color:var(--muted)}
 
 <footer class="rls-foot"><div class="rls-in">
   <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
-  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
 </div></footer>
 
 <div class="toast" id="toast" hidden>Befehl kopiert</div>
@@ -483,7 +483,7 @@ const btn=document.getElementById('copyBtn'),cmd=document.getElementById('connec
 let tt;
 const show=m=>{toast.textContent=m;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,1800)};
 const fallback=()=>{const r=document.createRange();r.selectNodeContents(cmd);const s=getSelection();s.removeAllRanges();s.addRange(r);show('Markiert – mit Strg+C kopieren')};
-btn.addEventListener('click',()=>{try{navigator.clipboard.writeText(cmd.textContent).then(()=>show('Befehl kopiert'),fallback)}catch(e){fallback()}});
+if(btn&&cmd)btn.addEventListener('click',()=>{try{navigator.clipboard.writeText(cmd.textContent).then(()=>show('Befehl kopiert'),fallback)}catch(e){fallback()}});
 
 // Maus-Glow auf Karten
 document.querySelectorAll('.glow').forEach(el=>el.addEventListener('pointermove',e=>{const r=el.getBoundingClientRect();el.style.setProperty('--mx',(e.clientX-r.left)+'px');el.style.setProperty('--my',(e.clientY-r.top)+'px')}));

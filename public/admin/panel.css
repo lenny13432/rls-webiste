@@ -583,3 +583,26 @@ em.rs-ja{color:var(--ok);font-style:normal}em.rs-nein{color:var(--bad);font-styl
 .wh-in{flex:1 1 260px;min-width:0;font:500 14px var(--mono);color:var(--fg);background:var(--night-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
 .wh-in:focus{outline:none;border-color:var(--pink)}
 .wh-msg .alert{margin:0}
+
+/* Social Media */
+.soc-rows{display:grid;gap:12px}
+.soc-row{display:grid;grid-template-columns:52px minmax(0,1fr);gap:14px;align-items:start;padding:14px;border-radius:14px;background:var(--night);border:1px solid var(--line)}
+.soc-ic{width:48px;height:48px;border-radius:14px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 15%,transparent);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+.soc-ic svg{width:26px;height:26px}
+.soc-f{display:grid;gap:8px;min-width:0}
+.soc-name{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.soc-name b{font-size:17px}
+.soc-two{display:grid;grid-template-columns:1fr 1.3fr;gap:8px}
+@media (max-width:640px){.soc-two{grid-template-columns:1fr}.soc-row{grid-template-columns:1fr}}
+.soc-f input,.cr-row input,.cr-row select{width:100%;min-width:0;font:500 14.5px var(--body);color:var(--fg);background:var(--night-2);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+.soc-f input:focus,.cr-row input:focus,.cr-row select:focus{outline:none;border-color:var(--pink)}
+.sw{display:inline-flex;align-items:center;gap:8px;font:600 13px var(--body);color:var(--muted);cursor:pointer;user-select:none}
+.sw input{position:absolute;opacity:0;width:1px;height:1px}
+.sw span{width:38px;height:22px;border-radius:99px;background:#ffffff1a;position:relative;transition:background .2s}
+.sw span::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s}
+.sw input:checked + span{background:var(--ok)}
+.sw input:checked + span::after{transform:translateX(16px)}
+.sw input:focus-visible + span{outline:2px solid var(--pink);outline-offset:2px}
+.cr-list{display:grid;gap:8px;margin-bottom:12px}
+.cr-row{display:grid;grid-template-columns:1fr 120px 1.4fr 1.4fr auto;gap:8px;align-items:center}
+@media (max-width:900px){.cr-row{grid-template-columns:1fr 1fr;padding:10px;border:1px solid var(--line);border-radius:12px}}

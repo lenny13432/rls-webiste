@@ -1598,6 +1598,45 @@ function diffRules(oldData, data) {
   return lines;
 }
 
+// ---------------------------------------------------------------- Social Media (Links im Panel pflegen, Website zeigt sie)
+const SOCIAL_PLATFORMS = ['discord', 'youtube', 'twitch', 'tiktok', 'instagram', 'x', 'kick'];
+const SOCIAL_DEFAULT = { intro: '', platforms: { discord: { url: 'https://discord.gg/q9kBzXP9va', handle: 'Real Life Southland', text: 'Community, Support & News', show: true } }, creators: [] };
+async function getSocials(db) {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'socials'").first();
+  let s = null; try { s = row ? JSON.parse(row.value) : null; } catch {}
+  return s || SOCIAL_DEFAULT;
+}
+async function getPublicSocials({ env }) {
+  await ensureSchema(env.DB);
+  const s = await getSocials(env.DB);
+  const platforms = SOCIAL_PLATFORMS.filter((k) => s.platforms[k] && s.platforms[k].show && s.platforms[k].url).map((k) => ({ key: k, ...s.platforms[k] }));
+  return new Response(JSON.stringify({ intro: s.intro || '', platforms, creators: s.creators || [] }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' } });
+}
+async function getSocialsAdmin({ request, env }) {
+  await requireAdmin(request, env);
+  return json({ socials: await getSocials(env.DB), platforms: SOCIAL_PLATFORMS });
+}
+async function saveSocials({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const b = await readBody(request), db = env.DB;
+  const httpsOk = (v, what) => { v = str(v, 300); if (v && !/^https:\/\/[^\s<>"']+$/.test(v)) throw new HttpError(`${what}: Der Link muss mit https:// anfangen.`); return v; };
+  const NAMES = { discord: 'Discord', youtube: 'YouTube', twitch: 'Twitch', tiktok: 'TikTok', instagram: 'Instagram', x: 'X', kick: 'Kick' };
+  const platforms = {};
+  for (const k of SOCIAL_PLATFORMS) {
+    const p = (b.platforms || {})[k] || {};
+    platforms[k] = { url: httpsOk(p.url, NAMES[k]), handle: str(p.handle, 60), text: str(p.text, 80), show: !!p.show };
+  }
+  const creators = (Array.isArray(b.creators) ? b.creators : []).slice(0, 40).map((c) => ({
+    name: str(c.name, 40), platform: pick(c.platform, SOCIAL_PLATFORMS, 'twitch'), url: httpsOk(c.url, 'Creator ' + str(c.name, 40)), note: str(c.note, 100)
+  })).filter((c) => c.name && c.url);
+  const data = { intro: str(b.intro, 300), platforms, creators };
+  await db.batch([
+    db.prepare("INSERT INTO settings (key, value) VALUES ('socials', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(data)),
+    act(db, me, 'news', 'socials', null, `hat die Social-Media-Links aktualisiert (${SOCIAL_PLATFORMS.filter((k) => platforms[k].show && platforms[k].url).length} Kanäle, ${creators.length} Creator)`)
+  ]);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -1619,6 +1658,9 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['GET', 'socials', getPublicSocials],
+  ['GET', 'admin/socials', getSocialsAdmin],
+  ['PUT', 'admin/socials', saveSocials],
   ['GET', 'rules', getPublicRules],
   ['GET', 'admin/rules', getRulesAdmin],
   ['GET', 'admin/webhooks', getWebhooks],
