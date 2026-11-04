@@ -1,0 +1,6 @@
+Karten für die Live-Karte (Team-Panel + Ingame-Menü)
+- dark.jpg / atlas.jpg / satellite.jpg: GTA-V-Karte, zusammengesetzt aus den Kacheln von
+  https://github.com/meesvrh/GTAV-Map-Tiles (Zoomstufe 4, 4096 × 4096). dark.jpg ist daraus im Stil der Pausenmenü-Karte umgefärbt.
+  Kartenbild © Rockstar Games.
+- leaflet.js / leaflet.css: Leaflet 1.9.4 (BSD-2-Clause), https://leafletjs.com
+- rlsmap.js / rlsmap.css: eigene Karten-Logik (Spiel-Koordinaten → Karte)

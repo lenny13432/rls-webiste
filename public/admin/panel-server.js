@@ -30,9 +30,12 @@ async function showServer() {
       <div><b>${d.online ? players.filter((p) => p.staff).length : '–'}</b><span>Team online</span></div>
       <div class="${openRep ? 'late' : ''}"><b>${openRep}</b><span>offene Reports</span></div>
     </div>
+    ${d.keySet ? svControlHtml(d) : ''}
     <div class="seg sv-tabs" id="svTabs">${tabs.map(([k, l]) => `<button type="button" data-v="${k}" class="${SV.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="svView"></div></div>`;
   $('svTabs').onclick = (e) => { const b = e.target.closest('[data-v]'); if (b) { SV.tab = b.dataset.v; SV.q = ''; SV.cat = ''; showServer(); } };
+  if (d.keySet) svControlBind(d);
+  if (SV.lmap && SV.tab !== 'karte') { SV.lmap.map.remove(); SV.lmap = null; }
   ({ spieler: svPlayers, karte: svMap, reports: svReports, logs: svLogs, ressourcen: svResources, items: svItems, koordinaten: svCoords, einrichtung: svSetup })[SV.tab]();
 }
 
@@ -77,36 +80,84 @@ function svPlayers() {
   };
 }
 
-// ---------------------------------------------------------------- Live-Karte
-const SVMAP = { x0: -4000, y1: 8300, k: 0.104, ox: 58 };
-const smx = (x) => (x - SVMAP.x0) * SVMAP.k + SVMAP.ox, smy = (y) => (SVMAP.y1 - y) * SVMAP.k;
-const SV_COAST = [[-1900, -3400], [-500, -3700], [1300, -3550], [1650, -2700], [2550, -1600], [2950, -300], [2800, 1300], [3350, 2600], [3750, 3800], [3800, 5100], [3300, 6100], [2200, 6550], [1300, 6700], [500, 7350], [-100, 6900], [-400, 6450], [-1100, 5900], [-1700, 5300], [-2300, 4500], [-2900, 3600], [-3250, 2600], [-3350, 1500], [-3150, 700], [-2600, 100], [-2050, -650], [-1700, -1300], [-1900, -2100], [-2400, -2800], [-2200, -3300]];
-const SV_PLACES = [['Los Santos', 150, -900, 1], ['Vinewood', 300, 300, 0], ['Flughafen', -1200, -2800, 0], ['Hafen', 900, -3000, 0], ['Vespucci', -1250, -1450, 0], ['Del Perro', -1500, -650, 0], ['Mirror Park', 1150, -600, 0], ['Sandy Shores', 1850, 3700, 1], ['Alamo Sea', 1200, 4100, 0], ['Grapeseed', 1950, 4850, 0], ['Paleto Bay', -250, 6300, 1], ['Mount Chiliad', 450, 5600, 0], ['Fort Zancudo', -2250, 3150, 0], ['Chumash', -3100, 900, 0], ['Senora-Wüste', 1700, 2600, 0], ['Palomino', 2700, 1000, 0]];
-function svMapBase() {
-  const p = SV_COAST.map(([x, y]) => [smx(x), smy(y)]), n = p.length;
-  let d = `M${p[0][0].toFixed(1)},${p[0][1].toFixed(1)}`;
-  for (let i = 0; i < n; i++) { const a = p[(i - 1 + n) % n], b = p[i], c = p[(i + 1) % n], e = p[(i + 2) % n]; d += `C${(b[0] + (c[0] - a[0]) / 6).toFixed(1)},${(b[1] + (c[1] - a[1]) / 6).toFixed(1)} ${(c[0] - (e[0] - b[0]) / 6).toFixed(1)},${(c[1] - (e[1] - b[1]) / 6).toFixed(1)} ${c[0].toFixed(1)},${c[1].toFixed(1)}`; }
-  let g = '<defs><radialGradient id="svLand" cx="45%" cy="55%" r="65%"><stop offset="0" stop-color="#2a1d55"/><stop offset="1" stop-color="#1a1238"/></radialGradient></defs>';
-  for (let x = -4000; x <= 4500; x += 1000) g += `<line class="gl" x1="${smx(x)}" y1="0" x2="${smx(x)}" y2="1300"/>`;
-  for (let y = -4000; y <= 8000; y += 1000) g += `<line class="gl" x1="0" y1="${smy(y)}" x2="1000" y2="${smy(y)}"/>`;
-  g += `<path d="${d}Z" class="coast"/><ellipse cx="${smx(1250)}" cy="${smy(4050)}" rx="48" ry="22" class="lake"/>`;
-  return g + SV_PLACES.map(([t, x, y, big]) => `<text x="${smx(x)}" y="${smy(y)}" class="pl${big ? ' big' : ''}">${t}</text>`).join('');
+// ---------------------------------------------------------------- Server-Steuerung (wie txAdmin)
+function svControlHtml(d) {
+  const live = d.live || {}, m = d.maintenance || {};
+  const left = live.restartAt && d.online ? Math.max(0, Math.round((new Date(live.restartAt) - Date.now()) / 1000)) : null;
+  const state = !d.online ? ['off', '⏻', 'Server offline', live.at ? 'Zuletzt gemeldet ' + ago(live.at) + '. Startet txAdmin ihn nicht automatisch, dort auf „Start“ drücken.' : 'Noch nie verbunden.']
+    : left !== null ? ['warn', '🔄', `Neustart in ${left >= 60 ? Math.ceil(left / 60) + ' Min.' : left + ' Sek.'}`, live.restartReason ? 'Grund: ' + live.restartReason : 'Spieler werden ingame gewarnt.']
+    : m.on ? ['warn', '🔧', 'Wartungsmodus aktiv', 'Nur das Team kann joinen.' + (m.reason ? ' ' + m.reason : '')]
+    : ['on', '●', 'Server läuft', `${(live.players || []).length}/${live.maxPlayers || '?'} Spieler · seit ${fmtUp(live.uptime)}`];
+  return `<section class="card sv-ctrl ${state[0]}"><div class="sv-state"><span class="sv-ic">${state[1]}</span><div><b>${esc(state[2])}</b><small>${esc(state[3])}</small></div></div>
+    ${d.owner ? `<div class="sv-ctrl-btns">
+      ${left !== null ? '<button class="btn btn-ghost sm" data-ctl="cancelRestart">✖ Neustart abbrechen</button>' : `<button class="btn btn-pink sm" data-ctl="restart" ${d.online ? '' : 'disabled'}>🔄 Server neu starten</button>`}
+      <button class="btn btn-ghost sm ${m.on ? 'on' : ''}" data-ctl="maintenance">${m.on ? '✅ Wartung beenden' : '🔧 Wartungsmodus'}</button>
+      <button class="btn btn-ghost sm" data-ctl="kickall" ${d.online ? '' : 'disabled'}>👢 Alle kicken</button>
+      <button class="btn btn-ghost sm" data-ctl="sync" ${d.online ? '' : 'disabled'}>↻ Daten holen</button></div>` : '<small class="muted">Neustart und Wartung darf nur der Owner.</small>'}</section>`;
 }
+function svControlBind(d) {
+  app.querySelectorAll('[data-ctl]').forEach((b) => (b.onclick = async () => {
+    const t = b.dataset.ctl;
+    try {
+      if (t === 'restart') return openDialog(`<form class="form main" style="gap:14px">${dlgHead('Server neu starten')}
+        <label class="field"><span>Wann?</span><select name="minutes"><option value="0">Sofort</option><option value="1">In 1 Minute</option><option value="5" selected>In 5 Minuten</option><option value="10">In 10 Minuten</option><option value="15">In 15 Minuten</option><option value="30">In 30 Minuten</option></select></label>
+        <label class="field"><span>Grund <small>(sehen die Spieler, optional)</small></span><input name="reason" maxlength="120" placeholder="z. B. Neues Update"></label>
+        <p class="muted" style="margin:0;font-size:13px">Spieler bekommen ingame einen Countdown (10, 5, 3, 2, 1 Min., 30 und 10 Sek.). Danach werden alle gekickt und der Server beendet sich. <b>txAdmin startet ihn automatisch wieder.</b></p>
+        <div class="dlg-foot"><span></span><button class="btn btn-bad" type="submit">Neustart auslösen</button></div></form>`,
+        async (fd) => { await svCmd({ type: 'restart', minutes: +fd.get('minutes'), reason: fd.get('reason') }); toast('Neustart geplant. Kommt in wenigen Sekunden ingame an.'); setTimeout(showServer, 6000); });
+      if (t === 'kickall') return openDialog(`<form class="form main" style="gap:14px">${dlgHead('Alle Spieler kicken')}
+        <label class="field"><span>Grund <small>(sehen die Spieler)</small></span><input name="reason" maxlength="200" placeholder="z. B. Kurze Wartung, gleich wieder offen"></label>
+        <p class="muted" style="margin:0;font-size:13px">Team-Mitglieder bleiben drin. Tipp: Vorher den Wartungsmodus anmachen, sonst joinen alle sofort wieder.</p>
+        <div class="dlg-foot"><span></span><button class="btn btn-bad" type="submit">Alle kicken</button></div></form>`,
+        async (fd) => { await svCmd({ type: 'kickall', reason: fd.get('reason') }); toast('Alle werden gekickt.'); });
+      if (t === 'maintenance') {
+        const on = !(d.maintenance && d.maintenance.on);
+        if (!on) { await svCmd({ type: 'maintenance', on: false }); toast('Wartungsmodus aus. Alle können wieder joinen.'); return showServer(); }
+        return openDialog(`<form class="form main" style="gap:14px">${dlgHead('Wartungsmodus einschalten')}
+          <label class="field"><span>Hinweis für Spieler <small>(optional)</small></span><input name="reason" maxlength="160" placeholder="z. B. Update wird eingespielt, ca. 20 Minuten"></label>
+          <p class="muted" style="margin:0;font-size:13px">Neue Spieler werden beim Verbinden abgewiesen, nur das Team (Admin-Gruppen aus der config.lua) kommt rein. Wer schon drin ist, bleibt drin. Gilt auch nach einem Neustart weiter.</p>
+          <div class="dlg-foot"><span></span><button class="btn btn-pink" type="submit">Wartung starten</button></div></form>`,
+          async (fd) => { await svCmd({ type: 'maintenance', on: true, reason: fd.get('reason') }); toast('Wartungsmodus an.'); setTimeout(showServer, 300); });
+      }
+      if (t === 'cancelRestart') { await svCmd({ type: 'cancelRestart' }); toast('Neustart wird abgebrochen.'); setTimeout(showServer, 6000); }
+      if (t === 'sync') { await svCmd({ type: 'sync' }); toast('Server schickt gleich frische Daten.'); setTimeout(showServer, 7000); }
+    } catch (err) { toast(err.message, 'bad'); }
+  }));
+}
+
+// ---------------------------------------------------------------- Live-Karte (echte GTA-V-Karte)
 function svMap() {
   const d = SV.d, players = d.online ? (d.live.players || []) : [];
   if (!d.online) { $('svView').innerHTML = '<div class="empty">Der Server ist gerade nicht verbunden.</div>'; return; }
-  const dots = players.filter((p) => p.x || p.y).map((p) => `<g class="sv-dot ${p.dead ? 'd' : p.staff ? 's' : ''}${SV.sel === p.id ? ' sel' : ''}" data-pid="${p.id}" transform="translate(${smx(p.x).toFixed(1)},${smy(p.y).toFixed(1)})">${SV.sel === p.id ? '<circle r="16" class="ring"/>' : ''}<circle r="6" class="pt"/>${SV.sel === p.id ? `<text y="-13" class="lbl">${esc(p.name)}</text>` : ''}</g>`).join('');
-  const sel = players.find((p) => p.id === SV.sel);
-  $('svView').innerHTML = `<div class="sv-map-wrap"><div class="sv-map"><svg viewBox="0 0 1000 1300" preserveAspectRatio="xMidYMid meet" id="svMapSvg">${svMapBase()}${dots}</svg>
-      ${sel ? `<div class="sv-tip"><b>${esc(sel.name)}</b><small>ID ${sel.id} · ${esc(sel.job || '–')} · ${Math.round(sel.x)}, ${Math.round(sel.y)}, ${Math.round(sel.z)}</small><div class="row"><button class="mini" data-cp="${esc(`vector3(${(+sel.x).toFixed(2)}, ${(+sel.y).toFixed(2)}, ${(+sel.z).toFixed(2)})`)}">Position kopieren</button><button class="mini" data-cmd="heal" data-id="${sel.id}">❤️ Heilen</button><button class="mini" data-cmd="revive" data-id="${sel.id}">💉 Beleben</button></div></div>` : ''}</div>
-    <aside class="card sv-map-side"><h3>Auf der Karte (${players.length})</h3><div class="legend"><span><i class="lg p"></i>Spieler</span><span><i class="lg s"></i>Team</span><span><i class="lg d"></i>Tot</span></div>
-      <div class="sv-map-list">${players.sort((a, b) => a.id - b.id).map((p) => `<button class="${SV.sel === p.id ? 'on' : ''}" data-pid="${p.id}"><b>${p.id}</b><span>${esc(p.name)}</span>${p.staff ? '<i class="tagc">Team</i>' : ''}</button>`).join('') || '<p class="muted">Niemand online.</p>'}</div>
-      <p class="muted" style="font-size:12.5px;margin:6px 0 0">Positionen kommen alle 20 Sekunden vom Server. Die Karte ist schematisch.</p></aside></div>`;
-  $('svView').onclick = async (e) => {
+  if (typeof RLSMap !== 'function') { $('svView').innerHTML = '<div class="empty">Karte konnte nicht geladen werden.</div>'; return; }
+  if (SV.lmap) { try { SV.lmap.map.remove(); } catch {} SV.lmap = null; }
+  $('svView').innerHTML = `<div class="sv-map-wrap"><div class="sv-map"><div id="svLmap" class="lmap"></div><div id="svTip"></div></div>
+    <aside class="card sv-map-side"><h3>Auf der Karte (<span id="svMapN">${players.length}</span>)</h3><div class="legend"><span><i class="lg p"></i>Spieler</span><span><i class="lg s"></i>Team</span><span><i class="lg d"></i>Tot</span></div>
+      <input id="svMapQ" type="search" placeholder="Spieler suchen" style="width:100%"><div class="sv-map-list" id="svMapList"></div>
+      <p class="muted" style="font-size:12.5px;margin:6px 0 0">Mausrad zum Zoomen, ziehen zum Verschieben. Oben rechts Spielkarte, Atlas oder Satellit. Positionen kommen alle 20 Sekunden.</p></aside></div>`;
+  SV.lmap = RLSMap('svLmap', { dark: '/map/dark.jpg', atlas: '/map/atlas.jpg', satellite: '/map/satellite.jpg' }, { onSelect: (id) => { SV.sel = id; svMapSide(); } });
+  svMapUpdate();
+  $('svMapQ').oninput = svMapSide;
+  $('svMapList').onclick = (e) => { const b = e.target.closest('[data-pid]'); if (b) { SV.sel = +b.dataset.pid; SV.lmap.focus(SV.sel); svMapSide(); } };
+  $('svTip').onclick = async (e) => {
     const cp = e.target.closest('[data-cp]'); if (cp) return copyText(cp.dataset.cp);
-    const c = e.target.closest('[data-cmd]'); if (c) { try { await svCmd({ type: c.dataset.cmd, target: c.dataset.id }); toast('Befehl geschickt.'); } catch (err) { toast(err.message, 'bad'); } return; }
-    const p = e.target.closest('[data-pid]'); SV.sel = p ? +p.dataset.pid : null; svMap();
+    const c = e.target.closest('[data-cmd]'); if (c) { try { await svCmd({ type: c.dataset.cmd, target: c.dataset.id }); toast('Befehl geschickt.'); } catch (err) { toast(err.message, 'bad'); } }
+    if (e.target.closest('[data-close]')) { SV.sel = null; SV.lmap.select(null); svMapSide(); }
   };
+}
+function svMapUpdate() {
+  const players = SV.d.online ? (SV.d.live.players || []) : [];
+  if (!SV.lmap) return;
+  SV.lmap.setPlayers(players); SV.lmap.select(SV.sel);
+  if ($('svMapN')) $('svMapN').textContent = players.length;
+  svMapSide();
+}
+function svMapSide() {
+  const players = SV.d.online ? (SV.d.live.players || []) : [], q = ($('svMapQ')?.value || '').toLowerCase();
+  $('svMapList').innerHTML = players.filter((p) => !q || `${p.id} ${p.name}`.toLowerCase().includes(q)).sort((a, b) => a.id - b.id).map((p) => `<button class="${SV.sel === p.id ? 'on' : ''}" data-pid="${p.id}"><b>${p.id}</b><span>${esc(p.name)}</span>${p.dead ? '💀' : ''}${p.staff ? '<i class="tagc">Team</i>' : ''}</button>`).join('') || '<p class="muted">Niemand online.</p>';
+  const sel = players.find((p) => p.id === SV.sel);
+  $('svTip').className = sel ? 'sv-tip' : '';
+  $('svTip').innerHTML = sel ? `<button class="mini" data-close style="position:absolute;right:10px;top:8px">×</button><b>${esc(sel.name)} <small class="muted">[${sel.id}]</small></b><small>${esc(sel.job || '–')} · ${Math.round(sel.x)}, ${Math.round(sel.y)}, ${Math.round(sel.z)}</small><div class="row"><button class="mini" data-cp="${esc(`vector3(${(+sel.x).toFixed(2)}, ${(+sel.y).toFixed(2)}, ${(+sel.z).toFixed(2)})`)}">📍 Position kopieren</button><button class="mini" data-cmd="heal" data-id="${sel.id}">❤️ Heilen</button><button class="mini" data-cmd="revive" data-id="${sel.id}">💉 Beleben</button><button class="mini" data-cmd="freeze" data-id="${sel.id}">🧊 Einfrieren</button><button class="mini" data-cmd="unfreeze" data-id="${sel.id}">🔥 Auftauen</button></div>` : '';
 }
 
 // ---------------------------------------------------------------- Reports
@@ -251,4 +302,8 @@ function svSetup() {
 }
 
 // Spielerliste live halten, solange die Seite offen ist
-setInterval(() => { if (LIVE.view === 'server' && ['spieler', 'karte', 'reports', 'logs'].includes(SV.tab) && !isBusy() && !document.hidden && me && !document.activeElement?.matches?.('input,textarea')) showServer(); }, 10000);
+setInterval(async () => {
+  if (LIVE.view !== 'server' || document.hidden || !me || isBusy()) return;
+  if (SV.tab === 'karte' && SV.lmap) { try { SV.d = await api('admin/server'); svMapUpdate(); } catch {} return; }
+  if (['spieler', 'reports', 'logs'].includes(SV.tab) && !document.activeElement?.matches?.('input,textarea')) showServer();
+}, 10000);

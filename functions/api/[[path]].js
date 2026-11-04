@@ -1703,13 +1703,24 @@ async function serverHeartbeat({ request, env }) {
   await requireServer(request, env);
   const db = env.DB, b = await readBody(request);
   const players = (Array.isArray(b.players) ? b.players : []).slice(0, 2048).map((p) => ({ id: parseInt(p.id, 10) || 0, name: str(p.name, 60), ping: parseInt(p.ping, 10) || 0, job: str(p.job, 60), group: str(p.group, 30), license: cleanLicense(p.license), discord: str(p.discord, 40).replace(/^discord:/, ''), x: num(p.x), y: num(p.y), z: num(p.z), staff: !!p.staff, dead: !!p.dead, veh: str(p.veh, 30) }));
-  await putSetting(db, 'server_live', JSON.stringify({ players, maxPlayers: parseInt(b.maxPlayers, 10) || 0, uptime: parseInt(b.uptime, 10) || 0, at: now() })).run();
-  return json({ ok: true, commands: await takeCommands(db) });
+  const restartIn = b.restartIn === undefined || b.restartIn === null ? null : Math.max(0, parseInt(b.restartIn, 10) || 0);
+  await putSetting(db, 'server_live', JSON.stringify({ players, maxPlayers: parseInt(b.maxPlayers, 10) || 0, uptime: parseInt(b.uptime, 10) || 0, at: now(), restartAt: restartIn === null ? null : new Date(Date.now() + restartIn * 1000).toISOString(), restartReason: str(b.restartReason, 120), maintenance: !!b.maintenance })).run();
+  return json({ ok: true, commands: await takeCommands(db), maintenance: parseJson(await getSetting(db, 'server_maintenance'), { on: false }) });
 }
 // schneller Abruf (alle paar Sekunden), damit Befehle aus dem Panel sofort ingame ankommen
 async function serverCommands({ request, env }) {
   await requireServer(request, env);
-  return json({ ok: true, commands: await takeCommands(env.DB) });
+  return json({ ok: true, commands: await takeCommands(env.DB), maintenance: parseJson(await getSetting(env.DB, 'server_maintenance'), { on: false }) });
+}
+// Wartungsmodus wurde ingame umgeschaltet → im Panel merken, damit er nach einem Neustart erhalten bleibt
+async function serverMaintenance({ request, env }) {
+  await requireServer(request, env);
+  const b = await readBody(request);
+  await env.DB.batch([
+    putSetting(env.DB, 'server_maintenance', JSON.stringify({ on: !!b.on, reason: str(b.reason, 160), by: str(b.by, 60) })),
+    act(env.DB, null, 'server', 'server', null, `🎮 ${str(b.by, 60) || 'Admin'} (ingame) hat den Wartungsmodus ${b.on ? 'eingeschaltet' : 'ausgeschaltet'}`)
+  ]);
+  return json({ ok: true });
 }
 async function serverBanCheck({ request, env, url }) {
   await requireServer(request, env);
@@ -1776,7 +1787,7 @@ async function getServerAdmin({ request, env }) {
   const st = parseJson(state, null), lv = parseJson(live, null), inList = new Set(list.map((r) => r.n));
   const online = !!(lv && lv.at && lv.at > isoAgo(150e3));
   return json({
-    keySet: !!keySet, owner: me.role === 'owner', online, live: lv, info: st?.info || null, synced_at: st?.synced_at || null,
+    keySet: !!keySet, owner: me.role === 'owner', online, maintenance: parseJson(await getSetting(db, 'server_maintenance'), { on: false }), live: lv, info: st?.info || null, synced_at: st?.synced_at || null,
     resources: (st?.resources || []).map((r) => ({ ...r, inList: inList.has(r.name.toLowerCase()) })), items: st?.items || [], coords,
     commands: cmds.map((c) => ({ ...c, payload: parseJson(c.payload, {}) })), logs, reports
   });
@@ -1804,6 +1815,18 @@ async function sendServerCommand({ request, env }) {
     if (!what || !/^[\w.-]+$/.test(name)) throw new HttpError('Unbekannte Ressource.');
     payload = { what, name, by: me.name }; text = `hat die Ressource ${q(name)} ${({ start: 'gestartet', stop: 'gestoppt', restart: 'neu gestartet' })[what]}`;
   } else if (b.type === 'sync') { payload = { by: me.name }; text = 'hat die Server-Daten neu angefordert'; }
+  else if (['restart', 'cancelRestart', 'kickall', 'maintenance'].includes(b.type)) {
+    if (me.role !== 'owner') throw new HttpError('Server-Steuerung darf nur der Owner.', 403);
+    if (b.type === 'restart') { const m = Math.max(0, Math.min(60, parseInt(b.minutes, 10) || 0)); payload = { minutes: m, reason: str(b.reason, 120), by: me.name }; text = `hat einen Server-Neustart ${m ? 'in ' + m + ' Min.' : 'sofort'} ausgelöst${payload.reason ? ' (' + payload.reason + ')' : ''}`; }
+    else if (b.type === 'cancelRestart') { payload = { by: me.name }; text = 'hat den Server-Neustart abgebrochen'; }
+    else if (b.type === 'kickall') { payload = { reason: str(b.reason, 200), by: me.name }; text = 'hat alle Spieler vom Server gekickt'; }
+    else {
+      const on = !!b.on, reason = str(b.reason, 160);
+      await putSetting(db, 'server_maintenance', JSON.stringify({ on, reason, by: me.name })).run();
+      await act(db, me, 'server', 'server', null, `hat den Wartungsmodus ${on ? 'eingeschaltet' : 'ausgeschaltet'}`).run();
+      return json({ ok: true });
+    }
+  }
   else throw new HttpError('Unbekannter Befehl.');
   await db.batch([
     db.prepare('INSERT INTO server_commands (type, payload, created_by, created_at) VALUES (?, ?, ?, ?)').bind(b.type, JSON.stringify(payload), me.id, now()),
@@ -1951,6 +1974,7 @@ const ROUTES = [
   ['POST', 'server/coords', serverCoords],
   ['POST', 'server/log', serverLog],
   ['GET', 'server/commands', serverCommands],
+  ['POST', 'server/maintenance', serverMaintenance],
   ['POST', 'server/logs', serverLogs],
   ['POST', 'server/report', serverReport],
   ['POST', 'server/report/:id', serverReportUpdate],

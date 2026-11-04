@@ -682,3 +682,19 @@ em.rs-ja{color:var(--ok);font-style:normal}em.rs-nein{color:var(--bad);font-styl
 .sv-rep{padding:16px 18px}
 .sv-rep .n-top{justify-content:flex-start}
 .sv-rep .n-top .pill{margin-left:0}
+/* Server-Steuerung + echte Karte */
+.sv-ctrl{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 18px;margin:0 0 16px;border-left:4px solid var(--ok)}
+.sv-ctrl.warn{border-left-color:var(--warn);background:linear-gradient(90deg,#ffc04f14,transparent 60%)}
+.sv-ctrl.off{border-left-color:var(--bad);background:linear-gradient(90deg,#ff5a6e14,transparent 60%)}
+.sv-state{display:flex;align-items:center;gap:12px;min-width:0}
+.sv-state b{display:block;font-size:16px}.sv-state small{color:var(--muted);font-size:13px}
+.sv-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:18px;background:#4fe0a01f;color:var(--ok);flex:none}
+.sv-ctrl.warn .sv-ic{background:#ffc04f22;color:var(--warn)}.sv-ctrl.off .sv-ic{background:#ff5a6e22;color:var(--bad)}
+.sv-ctrl-btns{display:flex;gap:8px;flex-wrap:wrap}
+.sv-ctrl-btns .btn.on{border-color:var(--warn);color:var(--warn)}
+.sv-map{aspect-ratio:auto;height:min(74vh,820px);background:#0f0f15}
+.sv-map-wrap{grid-template-columns:minmax(0,1fr) minmax(260px,320px)}
+.sv-map .sv-tip{z-index:600}
+.sv-map-side input[type=search]{font:500 14px var(--body);color:var(--fg);background:var(--night);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+@media (max-width:1000px){.sv-map{height:62vh}}
+.toasts{z-index:2000}
