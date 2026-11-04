@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social Media', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social Media', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 function setNav(view) {
   const logged = !!me;
   $('sb').hidden = !logged; $('mtop').hidden = !logged;
@@ -83,7 +83,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', server: () => '#server', coords: () => '#server', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -186,6 +186,7 @@ function route(live) {
     case 'news': return showNews();
     case 'regelwerk': return showRules();
     case 'social': return showSocials();
+    case 'server': return showServer();
     case 'launcher': return showLauncher();
     case 'team': return showTeam();
     case 'teamliste': return showTeamList();
@@ -291,7 +292,7 @@ async function showStart() {
   app.querySelectorAll('[data-pin]').forEach((b) => (b.onclick = async () => { await api('admin/announcements/' + b.dataset.pin, { method: 'PUT', body: { pinned: b.dataset.v === '1' } }); showStart(); }));
   app.querySelectorAll('[data-unpin]').forEach((b) => (b.onclick = async () => { if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Löschen?'; b.classList.add('arm'); return; } await api('admin/announcements/' + b.dataset.unpin, { method: 'DELETE' }); showStart(); }));
 }
-const KIND_ICON = { bewerbung: '📝', spieler: '🛡️', news: '📰', dev: '🛠️', pinnwand: '📌', team: '👥' };
+const KIND_ICON = { server: '🎮', bewerbung: '📝', spieler: '🛡️', news: '📰', dev: '🛠️', pinnwand: '📌', team: '👥' };
 const feedItem = (e) => `<li><a href="${refLink(e)}"><span class="fi">${KIND_ICON[e.kind] || '•'}</span><span><b>${esc(e.admin_name || 'Website')}</b> ${esc(e.text)}<small>${ago(e.created_at)}</small></span></a></li>`;
 
 // ============================================================ Bewerbungen
@@ -453,7 +454,7 @@ async function showPlayer(id) {
         <div class="s-list">${S.map((s) => `<article class="s-item s-${s.type}${live(s) ? '' : ' dim'}">
           <header><span class="s-type">${S_LABEL[s.type]}</span>${s.duration && s.type === 'ban' ? `<span class="s-dur">${esc(s.duration)}${s.expires_at ? ' · bis ' + fmt(s.expires_at) : ''}</span>` : ''}${status(s)}</header>
           <p>${nl(s.reason)}</p>
-          <footer><span>${esc(s.admin_name || '–')} · ${fmt(s.created_at)}</span><span class="row">
+          <footer><span>${esc(s.admin_name || (s.ingame_admin ? s.ingame_admin + ' (ingame)' : '–'))} · ${fmt(s.created_at)}</span><span class="row">
             ${live(s) && s.type !== 'hinweis' && s.type !== 'kick' ? `<button class="mini" data-lift="${s.id}">Aufheben</button>` : ''}
             ${me.role === 'owner' ? `<button class="mini" data-sdel="${s.id}">Löschen</button>` : ''}</span></footer></article>`).join('') || '<p class="muted">Noch keine Einträge. Sauberer Spieler.</p>'}</div>
       </section>

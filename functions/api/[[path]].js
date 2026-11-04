@@ -675,6 +675,10 @@ async function addSanction({ request, env, params, ctx }) {
     db.prepare('UPDATE players SET updated_at = ? WHERE id = ?').bind(now(), id),
     act(db, me, 'spieler', 'player', id, `hat ${q(p.name)} sanktioniert: ${SANCTION_LABEL[type]}${duration && type === 'ban' ? ' (' + duration + ')' : ''}`)
   ]);
+  if (type === 'ban' || type === 'permaban' || type === 'kick') {
+    const full = await db.prepare('SELECT license FROM players WHERE id = ?').bind(id).first();
+    try { await queueKickForLicense(db, full && full.license, type === 'kick' ? `Gekickt: ${reason}` : `Gebannt (${duration}): ${reason}`, me.id); } catch {}
+  }
   if (type === 'ban' || type === 'permaban') {
     await discordNotify(env, ctx, { title: `🔨 ${SANCTION_LABEL[type]}: ${p.name}`, color: 0xff5a6e, description: `**Grund:** ${reason}\n**Dauer:** ${duration}\n**Von:** ${me.name}` });
   }
@@ -1637,6 +1641,288 @@ async function saveSocials({ request, env }) {
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------- FiveM-Server ⇄ Panel
+// Der Ingame-Admin-Menü-Resource (rls_admin) spricht mit diesen Endpunkten. Schutz: Server-Schlüssel
+// im Header „X-RLS-Key“. Der Schlüssel wird im Panel (Einstellungen) erzeugt, gespeichert wird nur sein Hash.
+PANEL_SCHEMA.push(
+  `CREATE TABLE IF NOT EXISTS server_commands (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, payload TEXT, created_by INTEGER, created_at TEXT NOT NULL, delivered_at TEXT)`,
+  `CREATE TABLE IF NOT EXISTS dev_coords (id INTEGER PRIMARY KEY AUTOINCREMENT, label TEXT NOT NULL, category TEXT, x REAL NOT NULL, y REAL NOT NULL, z REAL NOT NULL, h REAL, admin_id INTEGER, admin_name TEXT, created_at TEXT NOT NULL)`
+);
+PANEL_SCHEMA.push(
+  `CREATE TABLE IF NOT EXISTS server_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL, text TEXT NOT NULL, player TEXT, admin TEXT, x REAL, y REAL, z REAL, created_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_server_logs_created ON server_logs (created_at)`,
+  `CREATE TABLE IF NOT EXISTS server_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, name TEXT NOT NULL, license TEXT, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offen', claimed_by TEXT, x REAL, y REAL, z REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`
+);
+COLUMN_MIGRATIONS.push(['sanctions', 'ingame_admin', 'TEXT']);
+
+const getSetting = async (db, key) => (await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first())?.value ?? null;
+const putSetting = (db, key, value) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(key, value);
+const parseJson = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
+const num = (v) => { const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+const cleanLicense = (v) => str(v, 80).replace(/^license:/, '');
+
+async function requireServer(request, env) {
+  await ensureSchema(env.DB);
+  const key = request.headers.get('X-RLS-Key') || '';
+  const hash = await getSetting(env.DB, 'server_key_hash');
+  if (!hash || !key || !safeEqual(await sha256(key), hash)) throw new HttpError('Server-Schlüssel fehlt oder ist falsch.', 401);
+}
+async function findOrCreatePlayer(db, t) {
+  const lic = cleanLicense(t.license), dc = str(t.discord, 40).replace(/^discord:/, ''), name = str(t.name, 60) || 'Unbekannt';
+  let p = null;
+  if (lic) p = await db.prepare("SELECT * FROM players WHERE license = ? OR license = 'license:' || ? LIMIT 1").bind(lic, lic).first();
+  if (!p && dc) p = await db.prepare('SELECT * FROM players WHERE discord = ? LIMIT 1').bind(dc).first();
+  if (p) return p;
+  const r = await db.prepare('INSERT INTO players (name, discord, license, notes, watch, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)')
+    .bind(name, dc, lic ? 'license:' + lic : '', 'Automatisch angelegt durch das Ingame-Admin-Menü.', now(), now()).run();
+  return { id: r.meta.last_row_id, name };
+}
+async function queueKickForLicense(db, license, reason, by) {
+  const lic = cleanLicense(license); if (!lic) return;
+  const live = parseJson(await getSetting(db, 'server_live'), null);
+  const hit = live && (live.players || []).find((p) => cleanLicense(p.license) === lic);
+  if (hit) await db.prepare("INSERT INTO server_commands (type, payload, created_by, created_at) VALUES ('kick', ?, ?, ?)").bind(JSON.stringify({ target: hit.id, reason }), by || null, now()).run();
+}
+
+// ---------- vom FiveM-Server aufgerufen
+async function serverSync({ request, env }) {
+  await requireServer(request, env);
+  const b = await readBody(request);
+  const resources = (Array.isArray(b.resources) ? b.resources : []).slice(0, 600).map((r) => ({ name: str(r.name, 80), state: str(r.state, 20), version: str(r.version, 30), author: str(r.author, 60), description: str(r.description, 140) })).filter((r) => r.name);
+  const items = (Array.isArray(b.items) ? b.items : []).slice(0, 3000).map((i) => ({ name: str(i.name, 60), label: str(i.label, 80), weight: num(i.weight) })).filter((i) => i.name);
+  const info = { name: str(b.info?.name, 120), maxPlayers: parseInt(b.info?.maxPlayers, 10) || 0, framework: str(b.info?.framework, 40), inventory: str(b.info?.inventory, 40) };
+  await putSetting(env.DB, 'server_state', JSON.stringify({ resources, items, info, synced_at: now() })).run();
+  return json({ ok: true, resources: resources.length, items: items.length });
+}
+async function takeCommands(db) {
+  const cmds = await all(db.prepare('SELECT id, type, payload FROM server_commands WHERE delivered_at IS NULL AND created_at > ? ORDER BY id LIMIT 20').bind(isoAgo(10 * 60e3)));
+  if (cmds.length) await db.prepare(`UPDATE server_commands SET delivered_at = ? WHERE id IN (${cmds.map(() => '?').join(',')})`).bind(now(), ...cmds.map((c) => c.id)).run();
+  return cmds.map((c) => ({ id: c.id, type: c.type, ...parseJson(c.payload, {}) }));
+}
+async function serverHeartbeat({ request, env }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request);
+  const players = (Array.isArray(b.players) ? b.players : []).slice(0, 2048).map((p) => ({ id: parseInt(p.id, 10) || 0, name: str(p.name, 60), ping: parseInt(p.ping, 10) || 0, job: str(p.job, 60), group: str(p.group, 30), license: cleanLicense(p.license), discord: str(p.discord, 40).replace(/^discord:/, ''), x: num(p.x), y: num(p.y), z: num(p.z), staff: !!p.staff, dead: !!p.dead, veh: str(p.veh, 30) }));
+  await putSetting(db, 'server_live', JSON.stringify({ players, maxPlayers: parseInt(b.maxPlayers, 10) || 0, uptime: parseInt(b.uptime, 10) || 0, at: now() })).run();
+  return json({ ok: true, commands: await takeCommands(db) });
+}
+// schneller Abruf (alle paar Sekunden), damit Befehle aus dem Panel sofort ingame ankommen
+async function serverCommands({ request, env }) {
+  await requireServer(request, env);
+  return json({ ok: true, commands: await takeCommands(env.DB) });
+}
+async function serverBanCheck({ request, env, url }) {
+  await requireServer(request, env);
+  const db = env.DB, lic = cleanLicense(url.searchParams.get('license')), dc = str(url.searchParams.get('discord'), 40).replace(/^discord:/, '');
+  if (!lic && !dc) return json({ banned: false });
+  const p = await db.prepare("SELECT id, name FROM players WHERE (? <> '' AND (license = ? OR license = 'license:' || ?)) OR (? <> '' AND discord = ?) LIMIT 1").bind(lic, lic, lic, dc, dc).first();
+  if (!p) return json({ banned: false });
+  const s = await db.prepare("SELECT type, reason, expires_at FROM sanctions WHERE player_id = ? AND type IN ('ban','permaban') AND active = 1 AND (expires_at IS NULL OR expires_at > ?) ORDER BY expires_at IS NULL DESC, expires_at DESC LIMIT 1").bind(p.id, now()).first();
+  return json(s ? { banned: true, permanent: s.type === 'permaban' || !s.expires_at, reason: s.reason, until: s.expires_at } : { banned: false });
+}
+async function serverSanction({ request, env, ctx }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request);
+  const type = pick(b.type, ['hinweis', 'verwarnung', 'kick', 'ban', 'permaban'], '');
+  const reason = str(b.reason, 1000) || 'Kein Grund angegeben', admin = str(b.admin, 60) || 'Admin';
+  if (!type) throw new HttpError('Unbekannte Sanktion.');
+  const p = await findOrCreatePlayer(db, b.target || {});
+  let expires = null, duration = null;
+  if (type === 'ban') { const h = Math.min(Math.max(Number(b.hours) || 24, 1), 24 * 365); expires = new Date(Date.now() + h * 3600e3).toISOString(); duration = h < 24 ? `${h} Std.` : `${Math.round(h / 24)} Tag${h === 24 ? '' : 'e'}`; }
+  if (type === 'permaban') duration = 'permanent';
+  await db.batch([
+    db.prepare('INSERT INTO sanctions (player_id, type, reason, duration, expires_at, active, admin_id, created_at, ingame_admin) VALUES (?, ?, ?, ?, ?, 1, NULL, ?, ?)').bind(p.id, type, reason, duration, expires, now(), admin),
+    db.prepare('UPDATE players SET updated_at = ? WHERE id = ?').bind(now(), p.id),
+    act(db, null, 'spieler', 'player', p.id, `🎮 ${admin} (ingame) hat ${q(p.name)} sanktioniert: ${SANCTION_LABEL[type]}${type === 'ban' ? ' (' + duration + ')' : ''}`)
+  ]);
+  if (type === 'ban' || type === 'permaban') await discordNotify(env, ctx, { title: `🔨 ${SANCTION_LABEL[type]}: ${p.name}`, color: 0xff5a6e, description: `**Grund:** ${reason}\n**Dauer:** ${duration}\n**Von:** ${admin} (ingame)` });
+  return json({ ok: true, player_id: p.id, until: expires });
+}
+async function serverCoords({ request, env }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request);
+  const label = str(b.label, 80) || 'Ohne Namen';
+  await db.batch([
+    db.prepare('INSERT INTO dev_coords (label, category, x, y, z, h, admin_id, admin_name, created_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)').bind(label, str(b.category, 40) || 'Allgemein', num(b.x), num(b.y), num(b.z), b.h === undefined || b.h === null ? null : num(b.h), str(b.admin, 60), now()),
+    act(db, null, 'dev', 'coords', null, `🎮 ${str(b.admin, 60) || 'Admin'} (ingame) hat die Koordinate ${q(label)} gespeichert`)
+  ]);
+  return json({ ok: true });
+}
+async function serverLog({ request, env }) {
+  await requireServer(request, env);
+  const b = await readBody(request);
+  const admin = str(b.admin, 60) || 'Admin', text = str(b.text, 240);
+  await env.DB.batch([
+    act(env.DB, null, 'server', 'server', null, `🎮 ${admin} (ingame) ${text}`),
+    env.DB.prepare('INSERT INTO server_logs (kind, text, player, admin, created_at) VALUES (?, ?, ?, ?, ?)').bind('admin', `${admin} ${text}`, str(b.player, 60), admin, now())
+  ]);
+  return json({ ok: true });
+}
+
+// ---------- im Panel
+async function getServerAdmin({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB;
+  const [state, live, keySet, coords, list, cmds] = await Promise.all([
+    getSetting(db, 'server_state'), getSetting(db, 'server_live'), getSetting(db, 'server_key_hash'),
+    all(db.prepare('SELECT c.*, COALESCE(a.name, c.admin_name) AS by_name FROM dev_coords c LEFT JOIN admins a ON a.id = c.admin_id ORDER BY c.id DESC LIMIT 500')),
+    all(db.prepare('SELECT LOWER(name) AS n FROM dev_resources')),
+    all(db.prepare('SELECT c.id, c.type, c.payload, c.created_at, c.delivered_at, a.name AS by_name FROM server_commands c LEFT JOIN admins a ON a.id = c.created_by ORDER BY c.id DESC LIMIT 10'))
+  ]);
+  const [logs, reports] = await Promise.all([
+    all(db.prepare('SELECT id, kind, text, player, admin, x, y, z, created_at FROM server_logs ORDER BY id DESC LIMIT 300')),
+    all(db.prepare("SELECT * FROM server_reports WHERE status <> 'erledigt' OR updated_at > ? ORDER BY CASE status WHEN 'offen' THEN 0 WHEN 'angenommen' THEN 1 ELSE 2 END, id DESC LIMIT 60").bind(isoAgo(864e5)))
+  ]);
+  const st = parseJson(state, null), lv = parseJson(live, null), inList = new Set(list.map((r) => r.n));
+  const online = !!(lv && lv.at && lv.at > isoAgo(150e3));
+  return json({
+    keySet: !!keySet, owner: me.role === 'owner', online, live: lv, info: st?.info || null, synced_at: st?.synced_at || null,
+    resources: (st?.resources || []).map((r) => ({ ...r, inList: inList.has(r.name.toLowerCase()) })), items: st?.items || [], coords,
+    commands: cmds.map((c) => ({ ...c, payload: parseJson(c.payload, {}) })), logs, reports
+  });
+}
+async function createServerKey({ request, env }) {
+  const me = await requireAdmin(request, env, true);
+  const key = 'rls_' + randomString(40, 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789');
+  await env.DB.batch([putSetting(env.DB, 'server_key_hash', await sha256(key)), act(env.DB, me, 'team', 'settings', null, 'hat einen neuen Server-Schlüssel für das Ingame-Menü erzeugt')]);
+  return json({ ok: true, key });
+}
+async function sendServerCommand({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request);
+  let payload, text;
+  if (b.type === 'announce') { const msg = str(b.text, 240); if (len(msg) < 2) throw new HttpError('Was soll angekündigt werden?'); payload = { text: msg, by: me.name }; text = `hat ingame angekündigt: ${q(msg)}`; }
+  else if (b.type === 'kick') { const t = parseInt(b.target, 10); if (!t) throw new HttpError('Welcher Spieler?'); payload = { target: t, reason: str(b.reason, 200) || 'Vom Team gekickt', by: me.name }; text = `hat Spieler-ID ${t} vom Server gekickt (${payload.reason})`; }
+  else if (['heal', 'revive', 'freeze', 'unfreeze', 'message'].includes(b.type)) {
+    const t = parseInt(b.target, 10); if (!t) throw new HttpError('Welcher Spieler?');
+    payload = { target: t, by: me.name };
+    if (b.type === 'message') { payload.text = str(b.text, 240); if (len(payload.text) < 2) throw new HttpError('Was willst du schreiben?'); }
+    text = { heal: `hat Spieler-ID ${t} aus dem Panel geheilt`, revive: `hat Spieler-ID ${t} aus dem Panel wiederbelebt`, freeze: `hat Spieler-ID ${t} aus dem Panel eingefroren`, unfreeze: `hat Spieler-ID ${t} aus dem Panel aufgetaut`, message: `hat Spieler-ID ${t} eine Nachricht geschickt: ${q(payload.text || '')}` }[b.type];
+  } else if (b.type === 'resource') {
+    if (me.role !== 'owner') throw new HttpError('Ressourcen starten und stoppen darf nur der Owner.', 403);
+    const what = pick(b.what, ['start', 'stop', 'restart'], ''), name = str(b.name, 80);
+    if (!what || !/^[\w.-]+$/.test(name)) throw new HttpError('Unbekannte Ressource.');
+    payload = { what, name, by: me.name }; text = `hat die Ressource ${q(name)} ${({ start: 'gestartet', stop: 'gestoppt', restart: 'neu gestartet' })[what]}`;
+  } else if (b.type === 'sync') { payload = { by: me.name }; text = 'hat die Server-Daten neu angefordert'; }
+  else throw new HttpError('Unbekannter Befehl.');
+  await db.batch([
+    db.prepare('INSERT INTO server_commands (type, payload, created_by, created_at) VALUES (?, ?, ?, ?)').bind(b.type, JSON.stringify(payload), me.id, now()),
+    act(db, me, 'server', 'server', null, text)
+  ]);
+  return json({ ok: true });
+}
+async function addCoordPanel({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request);
+  const label = str(b.label, 80); if (len(label) < 2) throw new HttpError('Gib der Koordinate einen Namen.');
+  const m = String(b.vector || '').match(/-?\d+(?:\.\d+)?/g);
+  if (!m || m.length < 3) throw new HttpError('Füge die Koordinate ein, z. B. vector3(215.76, -810.12, 30.73).');
+  await db.batch([
+    db.prepare('INSERT INTO dev_coords (label, category, x, y, z, h, admin_id, admin_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').bind(label, str(b.category, 40) || 'Allgemein', num(m[0]), num(m[1]), num(m[2]), m[3] !== undefined ? num(m[3]) : null, me.id, me.name, now()),
+    act(db, me, 'dev', 'coords', null, `hat die Koordinate ${q(label)} gespeichert`)
+  ]);
+  return json({ ok: true }, 201);
+}
+async function deleteCoord({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const c = await db.prepare('SELECT label FROM dev_coords WHERE id = ?').bind(id).first();
+  if (!c) return json({ ok: true });
+  await db.batch([db.prepare('DELETE FROM dev_coords WHERE id = ?').bind(id), act(db, me, 'dev', 'coords', null, `hat die Koordinate ${q(c.label)} gelöscht`)]);
+  return json({ ok: true });
+}
+async function importResources({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request);
+  const st = parseJson(await getSetting(db, 'server_state'), null);
+  const want = new Set((Array.isArray(b.names) ? b.names : []).map((n) => String(n).toLowerCase()));
+  const have = new Set((await all(db.prepare('SELECT LOWER(name) AS n FROM dev_resources'))).map((r) => r.n));
+  const add = (st?.resources || []).filter((r) => want.has(r.name.toLowerCase()) && !have.has(r.name.toLowerCase())).slice(0, 300);
+  if (!add.length) return json({ ok: true, added: 0 });
+  await db.batch([
+    ...add.map((r) => db.prepare('INSERT INTO dev_resources (name, version, kind, status, source, notes, admin_id, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(r.name, r.version, /^esx_|^es_extended/.test(r.name) ? 'ESX' : 'Sonstiges', r.state === 'started' ? 'aktiv' : 'aus', '', [r.author && 'Autor: ' + r.author, r.description].filter(Boolean).join(' · '), me.id, now())),
+    act(db, me, 'dev', 'resource', null, `hat ${add.length} Ressource${add.length === 1 ? '' : 'n'} vom Server in die Scripts-Liste übernommen`)
+  ]);
+  return json({ ok: true, added: add.length });
+}
+
+// ---------- Logs, Reports, Akte, Bans (vom FiveM-Server)
+const LOG_KINDS = ['join', 'leave', 'death', 'admin', 'report', 'chat', 'resource'];
+async function serverLogs({ request, env }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request);
+  const logs = (Array.isArray(b.logs) ? b.logs : []).slice(0, 100).map((l) => ({ kind: pick(l.kind, LOG_KINDS, 'admin'), text: str(l.text, 300), player: str(l.player, 60), admin: str(l.admin, 60), x: l.x == null ? null : num(l.x), y: l.y == null ? null : num(l.y), z: l.z == null ? null : num(l.z) })).filter((l) => l.text);
+  if (!logs.length) return json({ ok: true, saved: 0 });
+  await db.batch([
+    ...logs.map((l) => db.prepare('INSERT INTO server_logs (kind, text, player, admin, x, y, z, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(l.kind, l.text, l.player, l.admin, l.x, l.y, l.z, now())),
+    db.prepare('DELETE FROM server_logs WHERE created_at < ?').bind(isoAgo(14 * 864e5))
+  ]);
+  return json({ ok: true, saved: logs.length });
+}
+async function serverReport({ request, env, ctx }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request);
+  const text = str(b.text, 500), name = str(b.name, 60) || 'Unbekannt';
+  if (len(text) < 3) throw new HttpError('Report ist leer.');
+  const r = await db.prepare('INSERT INTO server_reports (server_id, name, license, text, status, x, y, z, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(parseInt(b.id, 10) || null, name, cleanLicense(b.license), text, 'offen', b.x == null ? null : num(b.x), b.y == null ? null : num(b.y), b.z == null ? null : num(b.z), now(), now()).run();
+  await act(db, null, 'server', 'server', null, `🆘 Neuer Report von ${q(name)}: ${q(text.slice(0, 120))}`).run();
+  return json({ ok: true, id: r.meta.last_row_id });
+}
+async function serverReportUpdate({ request, env, params }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request), id = Number(params.id);
+  const status = pick(b.status, ['offen', 'angenommen', 'erledigt'], '');
+  if (!status) throw new HttpError('Unbekannter Status.');
+  await db.prepare('UPDATE server_reports SET status = ?, claimed_by = COALESCE(?, claimed_by), updated_at = ? WHERE id = ?').bind(status, str(b.admin, 60) || null, now(), id).run();
+  return json({ ok: true });
+}
+async function serverReports({ request, env }) {
+  await requireServer(request, env);
+  return json({ rows: await all(env.DB.prepare("SELECT * FROM server_reports WHERE status <> 'erledigt' AND created_at > ? ORDER BY id DESC LIMIT 50").bind(isoAgo(864e5))) });
+}
+async function serverPlayerFile({ request, env, url }) {
+  await requireServer(request, env);
+  const db = env.DB, lic = cleanLicense(url.searchParams.get('license'));
+  if (!lic) return json({ found: false });
+  const p = await db.prepare("SELECT id, name, notes, watch, created_at FROM players WHERE license = ? OR license = 'license:' || ? LIMIT 1").bind(lic, lic).first();
+  if (!p) return json({ found: false });
+  const sanctions = await all(db.prepare('SELECT s.id, s.type, s.reason, s.duration, s.expires_at, s.active, s.created_at, COALESCE(a.name, s.ingame_admin) AS by_name FROM sanctions s LEFT JOIN admins a ON a.id = s.admin_id WHERE s.player_id = ? ORDER BY s.id DESC LIMIT 15').bind(p.id));
+  return json({ found: true, player: p, sanctions });
+}
+async function serverBans({ request, env }) {
+  await requireServer(request, env);
+  const rows = await all(env.DB.prepare("SELECT s.id, s.type, s.reason, s.duration, s.expires_at, s.created_at, p.name, COALESCE(a.name, s.ingame_admin) AS by_name FROM sanctions s JOIN players p ON p.id = s.player_id LEFT JOIN admins a ON a.id = s.admin_id WHERE s.type IN ('ban','permaban') AND s.active = 1 AND (s.expires_at IS NULL OR s.expires_at > ?) ORDER BY s.id DESC LIMIT 100").bind(now()));
+  return json({ rows });
+}
+async function serverUnban({ request, env }) {
+  await requireServer(request, env);
+  const db = env.DB, b = await readBody(request), id = parseInt(b.id, 10), admin = str(b.admin, 60) || 'Admin';
+  const s = await db.prepare("SELECT s.id, p.id AS pid, p.name FROM sanctions s JOIN players p ON p.id = s.player_id WHERE s.id = ? AND s.type IN ('ban','permaban')").bind(id).first();
+  if (!s) throw new HttpError('Ban nicht gefunden.', 404);
+  await db.batch([
+    db.prepare('UPDATE sanctions SET active = 0, lifted_by = NULL, lifted_at = ? WHERE id = ?').bind(now(), id),
+    act(db, null, 'spieler', 'player', s.pid, `🎮 ${admin} (ingame) hat den Ban von ${q(s.name)} aufgehoben`)
+  ]);
+  return json({ ok: true });
+}
+
+// ---------- im Panel: Logs & Reports
+async function setReportPanel({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request), id = Number(params.id);
+  const status = pick(b.status, ['offen', 'angenommen', 'erledigt'], '');
+  if (!status) throw new HttpError('Unbekannter Status.');
+  const r = await db.prepare('SELECT name FROM server_reports WHERE id = ?').bind(id).first();
+  if (!r) throw new HttpError('Report nicht gefunden.', 404);
+  await db.batch([
+    db.prepare('UPDATE server_reports SET status = ?, claimed_by = ?, updated_at = ? WHERE id = ?').bind(status, status === 'offen' ? null : me.name + ' (Web)', now(), id),
+    db.prepare('INSERT INTO server_commands (type, payload, created_by, created_at) VALUES (?, ?, ?, ?)').bind('report', JSON.stringify({ report: id, status, by: me.name }), me.id, now()),
+    act(db, me, 'server', 'server', null, `hat den Report von ${q(r.name)} auf „${status}“ gesetzt`)
+  ]);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------- Router
 const ROUTES = [
   ['GET', 'config', getConfig],
@@ -1658,6 +1944,27 @@ const ROUTES = [
   ['POST', 'admin/password', changePassword],
   ['PUT', 'admin/settings', saveSettings],
   ['GET', 'news', getPublicNews],
+  ['POST', 'server/sync', serverSync],
+  ['POST', 'server/heartbeat', serverHeartbeat],
+  ['GET', 'server/bancheck', serverBanCheck],
+  ['POST', 'server/sanction', serverSanction],
+  ['POST', 'server/coords', serverCoords],
+  ['POST', 'server/log', serverLog],
+  ['GET', 'server/commands', serverCommands],
+  ['POST', 'server/logs', serverLogs],
+  ['POST', 'server/report', serverReport],
+  ['POST', 'server/report/:id', serverReportUpdate],
+  ['GET', 'server/reports', serverReports],
+  ['GET', 'server/player', serverPlayerFile],
+  ['GET', 'server/bans', serverBans],
+  ['POST', 'server/unban', serverUnban],
+  ['POST', 'admin/server/report/:id', setReportPanel],
+  ['GET', 'admin/server', getServerAdmin],
+  ['POST', 'admin/server/key', createServerKey],
+  ['POST', 'admin/server/command', sendServerCommand],
+  ['POST', 'admin/server/import', importResources],
+  ['POST', 'admin/dev/coords', addCoordPanel],
+  ['DELETE', 'admin/dev/coords/:id', deleteCoord],
   ['GET', 'socials', getPublicSocials],
   ['GET', 'admin/socials', getSocialsAdmin],
   ['PUT', 'admin/socials', saveSocials],
