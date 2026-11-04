@@ -1,0 +1,45 @@
+/* Einheitliche Leiste oben + Footer für alle Seiten (Real Life Southland) */
+.rls-nav,.rls-nav *,.rls-foot,.rls-foot *{box-sizing:border-box}
+.rls-nav{position:sticky;top:0;z-index:50;height:56px;background:rgba(15,8,28,.86);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid rgba(255,255,255,.08);font-family:Barlow,system-ui,sans-serif}
+.rls-in{max-width:1200px;height:100%;margin:0 auto;padding:0 20px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:16px}
+.rls-brand{display:flex;align-items:center;gap:9px;justify-self:start;color:#fff;text-decoration:none}
+.rls-brand img{width:32px;height:32px;object-fit:contain;display:block}
+.rls-brand span{font:900 12.5px/1.05 Rubik,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase;width:92px}
+.rls-links{display:flex;align-items:center;gap:2px;padding:3px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07)}
+.rls-links a{color:rgba(255,255,255,.72);text-decoration:none;font-weight:600;font-size:14px;line-height:1;white-space:nowrap;padding:8px 13px;border-radius:999px;transition:background .15s,color .15s}
+.rls-links a:hover{color:#fff;background:rgba(255,255,255,.07)}
+.rls-links a.on{color:#fff;background:rgba(255,63,164,.18)}
+.rls-dc{justify-self:end;display:inline-flex;align-items:center;height:36px;padding:0 18px;border-radius:999px;background:linear-gradient(90deg,#ff3fa4,#ff7a59);color:#fff;font:700 14px Barlow,system-ui,sans-serif;text-decoration:none;white-space:nowrap;box-shadow:0 4px 14px rgba(255,63,164,.28)}
+.rls-dc:hover{filter:brightness(1.08)}
+.rls-burger{display:none;width:38px;height:38px;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(255,255,255,.04);color:#fff;cursor:pointer;align-items:center;justify-content:center}
+.rls-burger svg{width:20px;height:20px}
+@media (max-width:860px){
+  .rls-in{display:flex;gap:10px}
+  .rls-burger{display:inline-flex}
+  .rls-dc{height:34px;padding:0 14px;margin-left:auto}
+  .rls-links{display:none;position:absolute;left:0;right:0;top:56px;flex-direction:column;align-items:stretch;gap:2px;margin:0;padding:10px 16px 16px;border-radius:0;border:0;background:rgba(15,8,28,.97);border-bottom:1px solid rgba(255,255,255,.08)}
+  .rls-nav.open .rls-links{display:flex}
+  .rls-links a{padding:14px;font-size:16px;border-radius:12px}
+}
+@media (max-width:420px){.rls-brand span{display:none}.rls-in{padding:0 16px}}
+
+.rls-foot{border-top:1px solid rgba(255,255,255,.08);font-family:Barlow,system-ui,sans-serif;margin-top:40px}
+.rls-foot .rls-in{height:auto;flex-wrap:wrap;justify-content:space-between;padding-top:28px;padding-bottom:28px;gap:14px 24px;color:rgba(255,255,255,.55);font-size:14px}
+.rls-foot nav{display:flex;flex-wrap:wrap;gap:6px 18px;background:none;border:0;position:static;backdrop-filter:none}
+.rls-foot a{color:rgba(255,255,255,.7);text-decoration:none}
+.rls-foot a:hover{color:#fff}
+.rls-foot a.rls-panel{color:#ff3fa4;font-weight:700}
+.rls-soc{display:flex;gap:8px;width:100%;justify-content:flex-start;order:3}
+.rls-soc a{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:rgba(255,255,255,.75);background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);transition:color .15s,border-color .15s,transform .15s}
+.rls-soc a:hover{color:var(--c);border-color:var(--c);transform:translateY(-2px)}
+.rls-soc svg{width:19px;height:19px}
+@media (max-width:1100px){
+  .rls-in{display:flex;gap:10px}
+  .rls-burger{display:inline-flex}
+  .rls-dc{height:34px;padding:0 14px;margin-left:auto}
+  .rls-links{display:none;position:absolute;left:0;right:0;top:56px;flex-direction:column;align-items:stretch;gap:2px;margin:0;padding:10px 16px 16px;border-radius:0;border:0;background:rgba(15,8,28,.97);border-bottom:1px solid rgba(255,255,255,.08)}
+  .rls-nav.open .rls-links{display:flex}
+  .rls-links a{padding:14px;font-size:16px;border-radius:12px}
+}
+.rls-foot .rls-in{display:flex}
+.rls-soc{flex-basis:100%}

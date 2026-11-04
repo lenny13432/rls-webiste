@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Roadmap – Real Life Southland</title>
+<meta name="description" content="Was als Nächstes auf Real Life Southland III kommt: Meilensteine, Zeitplan und Fortschritt.">
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="bewerbung.css">
+<style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
+
+<main class="wrap rmp">
+  <header class="rmp-hero">
+    <h1 class="h"><span class="script">Was als Nächstes kommt</span>Roadmap</h1>
+    <p class="muted">Unser Weg zum Release von Real Life Southland III. Der Fortschritt kommt live aus dem Team-Panel. Termine können sich verschieben, Neuigkeiten gibt es zuerst im <a href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>.</p>
+  </header>
+  <div id="rmpOut"><p class="muted">Wird geladen…</p></div>
+</main>
+
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
+
+<style>
+.rmp{padding-block:48px 80px;max-width:900px}
+.rmp-hero p{max-width:640px;font-size:17px}
+.rmp-hero a{color:var(--pink)}
+.rmp-sum{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 30px}
+.rmp-sum span{padding:8px 14px;border-radius:99px;background:var(--night-2);border:1px solid var(--line);font-weight:600;font-size:14px}
+.rmp-sum b{color:var(--pink)}
+.rmp-list{list-style:none;margin:0;padding:0 0 0 34px;position:relative;display:grid;gap:18px}
+.rmp-list::before{content:"";position:absolute;left:11px;top:14px;bottom:14px;width:2px;background:linear-gradient(var(--pink),var(--violet),#ffffff14)}
+.rmp-i{position:relative}
+.rmp-dot{position:absolute;left:-34px;top:24px;width:24px;height:24px;border-radius:50%;background:var(--night);border:3px solid var(--line);display:grid;place-items:center;font-size:12px}
+.rmp-i.arbeit .rmp-dot{border-color:var(--pink);box-shadow:0 0 0 6px #ff4fb326;animation:rmpPulse 2s infinite}
+.rmp-i.fertig .rmp-dot{border-color:var(--ok);background:var(--ok);color:#06231a}
+@keyframes rmpPulse{50%{box-shadow:0 0 0 10px #ff4fb30d}}
+.rmp-card{padding:20px 22px;display:grid;gap:10px}
+.rmp-i.arbeit .rmp-card{border-color:#ff4fb366;box-shadow:0 0 40px #ff4fb31a}
+.rmp-top{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center}
+.rmp-when{font:600 13px var(--mono);color:var(--pink)}
+.rmp-st{font:700 11px var(--body);letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:99px;background:#7aa8ff1c;color:var(--info)}
+.rmp-i.arbeit .rmp-st{background:#ff4fb31f;color:var(--pink)}.rmp-i.fertig .rmp-st{background:#4fe0a01c;color:var(--ok)}
+.rmp-card h2{font-size:28px}
+.rmp-card p{margin:0}
+.rmp-goal{padding:10px 14px;border-radius:12px;background:#ffffff06;border:1px solid var(--line);font-size:15px}
+.rmp-bar{height:10px;border-radius:99px;background:#ffffff10;overflow:hidden}
+.rmp-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--violet),var(--pink))}
+.rmp-i.fertig .rmp-bar i{background:var(--ok)}
+.rmp-pct{font-size:13px;color:var(--muted)}
+.rmp-empty{padding:28px;text-align:center}
+</style>
+<script>
+(function () {
+  var out = document.getElementById('rmpOut');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var nl = function (s) { return esc(s).replace(/\n/g, '<br>'); };
+  var dd = function (s) { return s ? s.split('-').reverse().join('.') : ''; };
+  var LABEL = { geplant: 'Geplant', arbeit: 'In Arbeit', fertig: 'Geschafft' };
+  var today = new Date().toISOString().slice(0, 10);
+  fetch('/api/roadmap').then(function (r) { return r.ok ? r.json() : Promise.reject(); }).then(function (d) {
+    var rows = d.rows || [];
+    if (!rows.length) { out.innerHTML = '<div class="card rmp-empty"><p class="muted">Die Roadmap wird gerade vorbereitet. Schau bald wieder vorbei oder komm in unseren Discord.</p></div>'; return; }
+    var done = rows.filter(function (r) { return r.status === 'fertig'; }).length;
+    var cur = rows.filter(function (r) { return r.status === 'arbeit'; })[0];
+    var sum = '<div class="rmp-sum"><span><b>' + done + '</b> von ' + rows.length + ' Meilensteinen geschafft</span>' + (cur ? '<span>Gerade dran: <b>' + esc(cur.title) + '</b></span>' : '') + '</div>';
+    out.innerHTML = sum + '<ol class="rmp-list">' + rows.map(function (r) {
+      var pct = r.total ? Math.round(r.done / r.total * 100) : (r.status === 'fertig' ? 100 : 0);
+      var when = r.start_date && r.end_date && r.start_date !== r.end_date ? dd(r.start_date) + ' – ' + dd(r.end_date) : (r.end_date || r.start_date) ? dd(r.end_date || r.start_date) : (r.target || 'Termin folgt');
+      var cd = '';
+      if (r.status !== 'fertig' && r.start_date && r.start_date > today) { var n = Math.round((new Date(r.start_date + 'T12:00') - new Date(today + 'T12:00')) / 864e5); cd = ' · in ' + n + ' Tag' + (n === 1 ? '' : 'en'); }
+      return '<li class="rmp-i ' + esc(r.status) + '"><span class="rmp-dot">' + (r.status === 'fertig' ? '✓' : '') + '</span><article class="card rmp-card">' +
+        '<div class="rmp-top"><span class="rmp-st">' + (LABEL[r.status] || '') + '</span><span class="rmp-when">' + esc(when) + cd + '</span></div>' +
+        '<h2>' + esc(r.title) + '</h2>' + (r.body ? '<p class="muted">' + nl(r.body) + '</p>' : '') +
+        (r.goal ? '<div class="rmp-goal"><b>Ziel:</b> ' + nl(r.goal) + '</div>' : '') +
+        '<div class="rmp-bar" role="progressbar" aria-valuenow="' + pct + '" aria-valuemin="0" aria-valuemax="100"><i style="width:' + pct + '%"></i></div><span class="rmp-pct">' + pct + ' % fertig</span>' +
+        '</article></li>';
+    }).join('') + '</ol>';
+  }).catch(function () { out.innerHTML = '<div class="card rmp-empty"><p class="muted">Die Roadmap ist gerade nicht erreichbar. Versuch es gleich nochmal.</p></div>'; });
+})();
+</script>
+<script src="site.js"></script>
+</body>
+</html>

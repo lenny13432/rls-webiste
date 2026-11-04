@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Social Media – Real Life Southland</title>
+<meta name="description" content="Alle Kanäle von Real Life Southland III: Discord, YouTube, Twitch, TikTok, Instagram und unsere Creator.">
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="bewerbung.css">
+<style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
+
+<main class="wrap soc">
+  <header class="soc-hero">
+    <h1 class="h"><span class="script">Folg uns überall</span>Social Media</h1>
+    <p class="muted" id="socIntro">Trailer, Clips, Livestreams und alle News rund um Real Life Southland III. Such dir deinen Kanal aus.</p>
+  </header>
+  <div class="soc-grid" id="socGrid"></div>
+  <section id="creatorsBox" hidden>
+    <h2 class="soc-h2"><span class="script">Live aus Southland</span>Unsere Creator</h2>
+    <p class="muted soc-sub">Diese Streamer und Creator spielen bei uns. Schaut vorbei und lasst ein Follow da.</p>
+    <div class="cr-grid" id="crGrid"></div>
+  </section>
+  <section class="soc-cta card">
+    <div><h2>Selbst Creator?</h2><p class="muted">Du streamst oder machst Videos auf Southland? Meld dich per Ticket im Discord, dann nehmen wir dich hier auf.</p></div>
+    <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Ticket im Discord</a>
+  </section>
+</main>
+
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
+
+<style>
+.soc{padding-block:48px 80px}
+.soc-hero p{max-width:620px;font-size:17px}
+.soc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:28px}
+.sc{position:relative;overflow:hidden;display:grid;gap:12px;padding:22px;border-radius:20px;background:var(--night-2);border:1px solid var(--line);text-decoration:none;color:var(--fg);transition:transform .2s,border-color .2s,box-shadow .2s}
+.sc::before{content:"";position:absolute;inset:auto -40px -60px auto;width:180px;height:180px;border-radius:50%;background:var(--c);opacity:.14;filter:blur(30px);transition:opacity .2s}
+.sc:hover{transform:translateY(-4px);border-color:var(--c);box-shadow:0 18px 50px #0008}
+.sc:hover::before{opacity:.3}
+.sc-ic{width:54px;height:54px;border-radius:16px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 16%,transparent);border:1px solid color-mix(in srgb,var(--c) 40%,transparent)}
+.sc-ic svg{width:28px;height:28px}
+.sc b{font:900 24px var(--heavy);text-transform:uppercase}
+.sc .hd{font:600 14px var(--mono);color:var(--muted)}
+.sc .tx{color:var(--muted);font-size:15px;margin:0}
+.sc .go{font-weight:700;font-size:14px;color:var(--c)}
+.sc.big{grid-column:span 2}
+@media (max-width:640px){.sc.big{grid-column:auto}}
+.soc-h2{font-size:clamp(30px,4vw,44px);margin:56px 0 6px}
+.soc-h2 .script{display:block;font-size:.65em}
+.soc-sub{margin:0 0 20px}
+.cr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.cr{display:flex;gap:12px;align-items:center;padding:14px 16px;border-radius:16px;background:var(--night-2);border:1px solid var(--line);text-decoration:none;color:var(--fg);transition:border-color .2s,transform .2s}
+.cr:hover{border-color:var(--c);transform:translateY(-2px)}
+.cr-av{width:46px;height:46px;border-radius:50%;flex:none;display:grid;place-items:center;font:800 16px var(--body);color:#fff;background:linear-gradient(135deg,var(--violet),var(--pink))}
+.cr span{display:grid;line-height:1.3;min-width:0}
+.cr small{color:var(--muted);font-size:13px}
+.cr .pl{display:inline-flex;align-items:center;gap:5px;color:var(--c);font-weight:700;font-size:12.5px}
+.cr .pl svg{width:14px;height:14px}
+.soc-cta{margin-top:56px;padding:24px 26px;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+.soc-cta h2{font-size:26px;margin-bottom:4px}
+.soc-cta p{margin:0}
+</style>
+<script src="site.js"></script>
+<script>
+(function () {
+  var S = window.RLS_SOCIAL, grid = document.getElementById('socGrid');
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  var safe = function (u) { return /^https:\/\//.test(u || '') ? esc(u) : '#'; };
+  var GO = { discord: 'Server beitreten', youtube: 'Abonnieren', twitch: 'Folgen', tiktok: 'Folgen', instagram: 'Folgen', x: 'Folgen', kick: 'Folgen' };
+  function render(d) {
+    if (d.intro) document.getElementById('socIntro').textContent = d.intro;
+    grid.innerHTML = d.platforms.map(function (p, i) {
+      return '<a class="sc' + (p.key === 'discord' && d.platforms.length > 2 ? ' big' : '') + '" href="' + safe(p.url) + '" target="_blank" rel="noopener" style="--c:' + S.colors[p.key] + '">' +
+        '<span class="sc-ic">' + S.icon(p.key) + '</span><b>' + S.names[p.key] + '</b>' + (p.handle ? '<span class="hd">' + esc(p.handle) + '</span>' : '') +
+        (p.text ? '<p class="tx">' + esc(p.text) + '</p>' : '') + '<span class="go">' + GO[p.key] + ' →</span></a>';
+    }).join('');
+    var cr = d.creators || [];
+    document.getElementById('creatorsBox').hidden = !cr.length;
+    document.getElementById('crGrid').innerHTML = cr.map(function (c) {
+      var ini = esc(String(c.name).replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase() || '?');
+      return '<a class="cr" href="' + safe(c.url) + '" target="_blank" rel="noopener" style="--c:' + S.colors[c.platform] + '"><span class="cr-av">' + ini + '</span><span><b>' + esc(c.name) + '</b><span class="pl">' + S.icon(c.platform) + S.names[c.platform] + '</span>' + (c.note ? '<small>' + esc(c.note) + '</small>' : '') + '</span></a>';
+    }).join('');
+  }
+  render({ platforms: [{ key: 'discord', url: 'https://discord.gg/q9kBzXP9va', handle: 'Real Life Southland', text: 'Community, Support & News' }], creators: [] });
+  fetch('/api/socials').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d && d.platforms && d.platforms.length) render(d); }).catch(function () {});
+})();
+</script>
+</body>
+</html>

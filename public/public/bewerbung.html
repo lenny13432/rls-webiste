@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Team-Bewerbung – Real Life Southland</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="bewerbung.css">
+<style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
+
+<main>
+<div id="v-apply">
+  <div class="wrap">
+    <section class="apply-hero">
+      <div>
+        <h1><span class="script">Werde Teil des Teams</span>Team-Bewerbung</h1>
+        <p>Du willst Southland mitgestalten? Wir suchen motivierte Leute für Support, Moderation, Entwicklung und Events. Die Projektleitung liest jede Bewerbung persönlich.</p>
+        <p class="muted" style="font-size:15px">Schon beworben? <a href="status.html" style="color:var(--pink)">Status prüfen</a></p>
+      </div>
+      <ol class="flow">
+        <li><div><b>Formular ausfüllen</b><span>Dauert etwa 15 Minuten</span></div></li>
+        <li><div><b>Projektleitung prüft</b><span>Meist innerhalb von 3 Tagen</span></div></li>
+        <li><div><b>Gespräch im Discord</b><span>Wir lernen uns kennen</span></div></li>
+        <li><div><b>Testphase</b><span>2 Wochen im Team reinschnuppern</span></div></li>
+      </ol>
+    </section>
+
+    <div class="apply-grid">
+      <section class="card pad">
+        <div id="closed" class="alert info" hidden><p><b>Die Bewerbungsphase ist gerade pausiert.</b> Wann es weitergeht, erfahrt ihr im Discord.</p></div>
+        <div id="applyErr" class="alert bad" role="alert" hidden></div>
+        <form class="form" id="applyForm" novalidate>
+          <label class="hp" aria-hidden="true">Website <input id="f_website" tabindex="-1" autocomplete="off"></label>
+          <div class="form-sec">
+            <h2><i>1</i>Über dich</h2>
+            <div class="grid2">
+              <label class="field"><span>Discord-Benutzername</span><input id="f_discord" maxlength="32" placeholder="z. B. lenny_rls" autocomplete="off"></label>
+              <label class="field"><span>Discord-ID <small>(optional)</small></span><input id="f_did" inputmode="numeric" maxlength="20" placeholder="17–20 Ziffern"></label>
+            </div>
+            <div class="grid2">
+              <label class="field"><span>Dein Alter</span><input id="f_age" type="number" min="16" max="99"><span class="hint">Mindestalter: <span id="minAge">16</span> Jahre</span></label>
+              <label class="field"><span>Gewünschter Bereich</span><select id="f_pos"><option value="">Bitte wählen</option></select></label>
+            </div>
+          </div>
+          <div class="form-sec">
+            <h2><i>2</i>Verfügbarkeit</h2>
+            <div class="grid2">
+              <label class="field"><span>Zeit pro Woche</span>
+                <select id="f_hours"><option value="">Bitte wählen</option><option>unter 5 Stunden</option><option>5–10 Stunden</option><option>10–20 Stunden</option><option>über 20 Stunden</option></select>
+              </label>
+              <label class="field"><span>Wann bist du meistens da?</span><input id="f_times" maxlength="120" placeholder="z. B. werktags ab 17 Uhr, Wochenende ganztags"></label>
+            </div>
+          </div>
+          <div class="form-sec">
+            <h2><i>3</i>Erfahrung &amp; Motivation</h2>
+            <label class="field"><span>Deine Team-Erfahrung</span>
+              <textarea id="f_exp" maxlength="3000" data-min="30" placeholder="Warst du schon im Team eines Servers? Welche Aufgaben hattest du? Was kannst du besonders gut?"></textarea>
+              <span class="hint"><span>Keine Erfahrung? Erzähl uns, was du lernen möchtest.</span><span class="count" data-for="f_exp">0</span></span>
+            </label>
+            <label class="field"><span>Warum sollten wir dich nehmen?</span>
+              <textarea id="f_mot" class="tall" maxlength="3000" data-min="150" placeholder="Was bringst du mit? Warum gerade Southland? Was würdest du im Team verbessern?"></textarea>
+              <span class="hint"><span>Mindestens 150 Zeichen</span><span class="count" data-for="f_mot">0</span></span>
+            </label>
+          </div>
+          <div class="form-sec">
+            <h2><i>4</i>Praxisfragen</h2>
+            <label class="field"><span>Ein Spieler meldet im Support, dass er grundlos erschossen wurde (RDM). Wie gehst du vor?</span>
+              <textarea id="f_s1" maxlength="2000" data-min="80"></textarea>
+              <span class="hint"><span>Mindestens 80 Zeichen</span><span class="count" data-for="f_s1">0</span></span>
+            </label>
+            <label class="field"><span>Ein anderes Teammitglied ist respektlos zu Spielern. Was machst du?</span>
+              <textarea id="f_s2" maxlength="2000" data-min="80"></textarea>
+              <span class="hint"><span>Mindestens 80 Zeichen</span><span class="count" data-for="f_s2">0</span></span>
+            </label>
+          </div>
+          <div class="form-sec">
+            <h2><i>5</i>Bestätigen</h2>
+            <label class="check"><input id="f_rules" type="checkbox"><span>Ich kenne das <a href="regelwerk.html" target="_blank">Regelwerk</a> und halte mich daran.</span></label>
+            <label class="check"><input id="f_volunteer" type="checkbox"><span>Mir ist klar, dass die Arbeit im Team freiwillig und unbezahlt ist.</span></label>
+            <label class="check"><input id="f_priv" type="checkbox"><span>Ich bin einverstanden, dass meine Angaben gespeichert und von der Projektleitung zur Bearbeitung meiner Bewerbung genutzt werden. Sie werden nicht weitergegeben<span id="delText"> und 90 Tage nach der Entscheidung automatisch gelöscht</span>. Löschen lassen kannst du sie jederzeit per Ticket im Discord.</span></label>
+            <button class="btn btn-pink" type="submit" id="submitBtn" style="justify-self:start;padding:16px 34px;font-size:17px">Bewerbung abschicken</button>
+          </div>
+        </form>
+      </section>
+
+      <aside class="side">
+        <div class="card"><h3>Wir suchen gerade</h3><div class="openings" id="openings"><p class="muted" style="margin:0;font-size:14px">Wird geladen…</p></div></div>
+        <div class="card"><h3>Das solltest du mitbringen</h3><ul><li>Mindestens <span class="minAge">16</span> Jahre</li><li>Ruhig bleiben, auch wenn es hitzig wird</li><li>Regelmäßig Zeit, Mikrofon und Discord</li><li>Freundlicher Umgangston</li></ul></div>
+        <div class="card"><h3>Gut zu wissen</h3><ul><li>Pro Discord-Name eine Bewerbung</li><li>Nach einer Ablehnung kannst du dich nach <span id="cooldown">7</span> Tagen neu bewerben</li><li>Fragen? Ticket im Discord</li></ul></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<div class="wrap narrow" id="v-done" hidden>
+  <section class="card pad">
+    <div class="status-big"><div class="ic st-angenommen">✓</div><h2>Bewerbung abgeschickt!</h2>
+      <p class="muted">Danke für dein Interesse am Team! Die Projektleitung schaut sich deine Bewerbung so schnell wie möglich an.</p></div>
+    <p><b>Dein Bewerbungscode:</b></p>
+    <div class="code-box"><code id="doneCode"></code><button class="btn btn-ghost sm" type="button" id="copyCode">Kopieren</button></div>
+    <div class="alert info"><p><b>Speicher dir diesen Code!</b> Damit kannst du jederzeit nachschauen, ob deine Bewerbung angenommen wurde. Wir zeigen ihn dir nur dieses eine Mal.</p></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap"><a class="btn btn-pink" id="toStatus" href="status.html">Status ansehen</a><a class="btn btn-ghost" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Zum Discord</a></div>
+  </section>
+</div>
+</main>
+
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const STATE = { offen: ['Offen', 'st-angenommen'], wenige: ['Wenige Plätze', 'st-pruefung'], voll: ['Voll', 'st-abgelehnt'], geschlossen: ['Geschlossen', 'st-abgelehnt'] };
+const started = Date.now();
+
+// Zeichenzähler
+document.querySelectorAll('.count').forEach((c) => {
+  const t = $(c.dataset.for), min = +t.dataset.min || 0;
+  const up = () => { const n = [...t.value].length; c.textContent = n + (min ? ' / ' + min : ''); c.className = 'count ' + (n >= min ? 'okc' : 'low'); };
+  t.addEventListener('input', up); up();
+});
+
+// Bereiche und Einstellungen vom Server holen
+fetch('/api/config').then((r) => r.json()).then((cfg) => {
+  $('minAge').textContent = cfg.minAge; document.querySelectorAll('.minAge').forEach((e) => (e.textContent = cfg.minAge)); $('f_age').min = cfg.minAge;
+  $('cooldown').textContent = cfg.cooldownDays;
+  if (!cfg.deleteAfterDays) $('delText').textContent = ''; else $('delText').textContent = ` und ${cfg.deleteAfterDays} Tage nach der Entscheidung automatisch gelöscht`;
+  $('openings').innerHTML = cfg.positions.map((p) => `<div><b>${esc(p.name)}</b><span class="pill ${STATE[p.state]?.[1] || ''}">${STATE[p.state]?.[0] || esc(p.state)}</span></div>`).join('');
+  cfg.positions.forEach((p) => {
+    const o = document.createElement('option'); o.value = p.name;
+    const blocked = p.state === 'voll' || p.state === 'geschlossen';
+    o.textContent = p.name + (blocked ? ' (gerade voll)' : ''); o.disabled = blocked; $('f_pos').append(o);
+  });
+  if (!cfg.open) { $('closed').hidden = false; $('applyForm').hidden = true; }
+}).catch(() => { $('openings').innerHTML = '<p class="muted" style="margin:0;font-size:14px">Konnte nicht geladen werden.</p>'; });
+
+// Absenden
+$('applyForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const v = (id) => $(id).value.trim();
+  const body = {
+    website: v('f_website'), started,
+    discord_name: v('f_discord'), discord_id: v('f_did'), age: v('f_age'), position: v('f_pos'), hours: v('f_hours'), times: v('f_times'),
+    experience: v('f_exp'), motivation: v('f_mot'), scenario1: v('f_s1'), scenario2: v('f_s2'),
+    rules: $('f_rules').checked, volunteer: $('f_volunteer').checked, privacy: $('f_priv').checked
+  };
+  const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Wird gesendet…';
+  const box = $('applyErr');
+  try {
+    const r = await fetch('/api/apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await r.json();
+    if (!r.ok) throw (data.errors || [data.error || 'Das hat nicht geklappt.']);
+    $('doneCode').textContent = data.code;
+    $('toStatus').href = 'status.html?code=' + encodeURIComponent(data.code);
+    $('v-apply').hidden = true; $('v-done').hidden = false; scrollTo(0, 0);
+  } catch (errs) {
+    const list = Array.isArray(errs) ? errs : ['Keine Verbindung zum Server. Versuch es gleich nochmal.'];
+    box.innerHTML = list.map((x) => '<p>' + esc(x) + '</p>').join(''); box.hidden = false;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  } finally { btn.disabled = false; btn.textContent = 'Bewerbung abschicken'; }
+};
+$('copyCode').onclick = () => {
+  const t = $('doneCode').textContent;
+  try { navigator.clipboard.writeText(t).then(() => ($('copyCode').textContent = 'Kopiert!'), () => {}); } catch {}
+};
+</script>
+<script src="site.js"></script>
+</body>
+</html>

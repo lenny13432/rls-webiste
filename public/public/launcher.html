@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Launcher – Real Life Southland</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: Download-Seite – großer Hero mit schrägem Launcher-Fenster, Schritt-für-Schritt-Anleitung, Probleme & Lösungen */
+:root{
+  --night:#120b26; --night-2:#1b1238; --line:#34265c; --fg:#f6f1ff; --muted:#b5a8d8;
+  --pink:#ff4fb3; --violet:#5b34e0; --sunset:#ff7a45; --ok:#4fe0a0; --win:#0067c0;
+  --heavy:"Rubik", "Arial Black", Impact, sans-serif;
+  --script:"Yellowtail", "Brush Script MT", cursive;
+  --body:"Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{background:var(--night);color:var(--fg);font:400 17px/1.6 var(--body);margin:0;overflow-x:hidden}
+img{max-width:100%}
+[hidden]{display:none!important}
+.wrap{max-width:1160px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left,0px));padding-right:max(16px, env(safe-area-inset-right,0px))}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
+h1,h2,h3{font-family:var(--heavy);text-wrap:balance;margin:0;line-height:.95;text-transform:uppercase}
+.script{font-family:var(--script);text-transform:none;color:var(--pink);font-weight:400}
+
+/* Nav */
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--night)}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:9;background:color-mix(in srgb,var(--night) 82%,transparent);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none}
+.brand img{width:46px;height:46px}
+.brand span{font:900 15px/1 var(--heavy);letter-spacing:.06em;text-transform:uppercase}
+.links{display:flex;gap:22px;font-weight:600;font-size:15px}
+.links a{text-decoration:none;color:var(--muted)}
+.links a:hover,.links a.on{color:var(--fg)}
+.links a.on{box-shadow:inset 0 -2px var(--pink)}
+@media (max-width:900px){.links{display:none}}
+@media (max-width:600px){.brand span{display:none}}
+
+.btn{font:700 15px var(--body);border:0;border-radius:999px;padding:12px 22px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:10px;transition:transform .15s, box-shadow .2s;position:relative;overflow:hidden}
+.btn:hover{transform:translateY(-2px)}
+.btn-pink{background:linear-gradient(90deg,var(--pink),var(--sunset));color:#1a0616;box-shadow:0 8px 30px #ff4fb355}
+.btn-ghost{background:#ffffff0d;color:var(--fg);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--pink)}
+.btn svg{width:20px;height:20px;flex:none}
+
+/* Hero */
+.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.hero::before{content:"";position:absolute;inset:0;background:url(banner.jpg) center 40%/cover;opacity:.22;filter:blur(2px)}
+.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(700px 400px at 75% 40%,#5b34e044,transparent 70%),linear-gradient(90deg,var(--night) 25%,#120b26cc 55%,#120b2688),linear-gradient(to top,var(--night),transparent 50%)}
+.hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1fr 1.15fr;gap:48px;align-items:center;padding-block:72px 80px}
+.hero .wrap > *{min-width:0}
+@media (max-width:900px){.hero .wrap{grid-template-columns:1fr;padding-block:48px 56px}}
+.hero h1{font-size:clamp(46px,7vw,84px);font-weight:900}
+.hero h1 .script{display:block;font-size:.7em;margin-bottom:4px;text-shadow:0 0 30px #ff4fb388}
+.hero p.lead{color:var(--muted);font-size:18px;max-width:46ch;margin:18px 0 26px}
+.dl{position:relative;font-size:19px;padding:18px 32px;border-radius:16px}
+.dl::after{content:"";position:absolute;inset:0;background:linear-gradient(110deg,transparent 30%,#ffffffaa 50%,transparent 70%);transform:translateX(-120%);animation:shine 3.2s ease-in-out infinite}
+@keyframes shine{60%,100%{transform:translateX(120%)}}
+.dl small{display:block;font:600 12px var(--body);opacity:.75;letter-spacing:.04em}
+.dl-row{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+.fact{font:600 12px var(--body);letter-spacing:.08em;text-transform:uppercase;padding:6px 12px;border-radius:99px;background:#ffffff0d;border:1px solid var(--line);color:var(--muted)}
+.fact b{color:var(--fg)}
+.hash{margin-top:14px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);min-width:0}
+.hash code{font:500 11px var(--mono);color:var(--muted);overflow-x:auto;white-space:nowrap;min-width:0;flex:1}
+.hash button{flex:none;background:#ff4fb322;color:var(--pink);border:0;border-radius:6px;padding:4px 10px;font:700 11px var(--body);cursor:pointer}
+
+/* Launcher-Fenster */
+.window{position:relative;border-radius:14px;overflow:hidden;border:1px solid #ff4fb366;box-shadow:0 40px 100px #000c,0 0 80px #ff4fb333;transform:perspective(1400px) rotateY(-10deg) rotateX(3deg);transition:transform .6s cubic-bezier(.2,.8,.2,1);animation:float 6s ease-in-out infinite}
+.window:hover{transform:perspective(1400px) rotateY(-3deg) rotateX(1deg) scale(1.02)}
+@keyframes float{50%{translate:0 -10px}}
+@media (max-width:900px){.window{transform:none}}
+.window img{display:block;width:100%}
+.window::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,#ffffff18 50%,transparent 60%);pointer-events:none}
+
+section{padding-block:84px}
+section + section{border-top:1px solid var(--line)}
+.sec-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:16px;margin-bottom:40px}
+.sec-head h2{font-size:clamp(38px,5.5vw,62px);font-weight:900}
+.sec-head h2 .script{display:block;font-size:.75em;margin-bottom:-2px}
+.sec-head p{color:var(--muted);max-width:46ch;margin:0}
+
+/* Features */
+.features{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+@media (max-width:860px){.features{grid-template-columns:1fr}}
+.feat{background:var(--night-2);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:grid;min-width:0;transition:border-color .25s, transform .25s}
+.feat:hover{border-color:var(--pink);transform:translateY(-4px)}
+.feat img{display:block;width:100%;aspect-ratio:17/10;object-fit:cover;max-width:100%}
+.feat .in{padding:18px 20px 22px;display:grid;gap:6px}
+.feat h3{font-size:20px;font-weight:900}
+.feat p{margin:0;color:var(--muted);font-size:15px}
+
+/* Anleitung */
+.req{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:34px}
+.req > div{display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:14px;background:var(--night-2);border:1px solid var(--line);flex:1 1 220px}
+.req svg{width:26px;height:26px;color:var(--pink);flex:none}
+.req b{display:block;font-weight:700}
+.req span{font-size:14px;color:var(--muted)}
+.req a{color:var(--pink)}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:18px;counter-reset:s}
+.step{counter-increment:s;display:grid;grid-template-columns:72px 1fr;gap:22px;align-items:start;padding:26px;border-radius:18px;background:var(--night-2);border:1px solid var(--line);min-width:0}
+@media (max-width:600px){.step{grid-template-columns:1fr;gap:12px;padding:20px}}
+.step::before{content:counter(s);display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--violet),var(--pink));font:900 28px var(--heavy);box-shadow:0 0 30px #ff4fb366}
+.step h3{font-size:24px;font-weight:900;margin-bottom:8px}
+.step p{margin:0 0 10px;color:var(--muted);max-width:68ch}
+.step p:last-child{margin-bottom:0}
+.step b{color:var(--fg)}
+.step .body{min-width:0}
+kbd{font:500 13px var(--mono);border:1px solid var(--line);border-radius:5px;padding:1px 7px;background:var(--night);color:var(--fg)}
+.note{display:flex;gap:12px;padding:14px 16px;border-radius:12px;background:#ff7a4512;border:1px solid #ff7a4544;color:var(--fg);font-size:15px;margin-top:12px}
+.note svg{width:20px;height:20px;flex:none;color:var(--sunset);margin-top:2px}
+
+/* Windows-SmartScreen-Nachbau */
+.smart{margin-top:14px;max-width:440px;border-radius:8px;overflow:hidden;background:var(--win);color:#fff;font-family:"Segoe UI",system-ui,sans-serif;box-shadow:0 20px 50px #0008}
+.smart .top{padding:22px 24px 6px}
+.smart .t{font-size:22px;font-weight:600;line-height:1.2}
+.smart .d{font-size:13px;opacity:.9;margin-top:10px}
+.smart .lnk{font-size:13px;text-decoration:underline;margin-top:8px;display:inline-block;position:relative}
+.smart .lnk.hl,.smart .run.hl{outline:3px solid var(--pink);outline-offset:3px;border-radius:2px;animation:blink 1.4s ease-in-out infinite}
+@keyframes blink{50%{outline-color:#ff4fb355}}
+.smart .bot{display:flex;justify-content:flex-end;gap:8px;padding:16px 24px 20px}
+.smart .bot span{font-size:13px;padding:6px 18px;border:1px solid #ffffffaa}
+.smart .run{background:#fff;color:#0067c0;border-color:#fff!important}
+.smart-pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:900px}
+@media (max-width:760px){.smart-pair{grid-template-columns:1fr}}
+.smart-cap{font:600 12px var(--body);letter-spacing:.1em;text-transform:uppercase;color:var(--pink);margin-top:14px}
+
+/* Probleme */
+.faq{display:grid;gap:10px;max-width:900px}
+.faq > *{min-width:0}
+details{border:1px solid var(--line);border-radius:14px;background:var(--night-2)}
+details[open]{border-color:#ff4fb366}
+summary{cursor:pointer;list-style:none;padding:18px 22px;display:flex;gap:14px;align-items:center;font-weight:700;font-size:17px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";margin-left:auto;color:var(--muted);font:500 22px var(--mono)}
+details[open] summary::after{content:"–";color:var(--pink)}
+details .body{padding:0 22px 20px;color:var(--muted)}
+details .body p{margin:0 0 10px}
+details .body p:last-child{margin:0}
+.cmd{display:flex;align-items:center;gap:10px;background:var(--night);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 14px;max-width:420px;margin-top:8px}
+.cmd code{font:500 14px var(--mono);color:var(--pink);flex:1;min-width:0;overflow-x:auto;white-space:nowrap}
+.copy{background:#ff4fb322;color:var(--pink);border:0;border-radius:7px;padding:7px 12px;font:700 12px var(--body);cursor:pointer}
+
+.cta{background:linear-gradient(120deg,#2a1a8a,#9b2f9e,#ff6a4a);}
+.cta .wrap{padding-block:64px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:24px}
+.cta h2{font-size:clamp(34px,5vw,58px);font-weight:900;text-shadow:0 4px 0 #0005}
+.cta h2 .script{color:#fff;display:block;font-size:.8em}
+.cta .btn{background:#120b26;color:#fff;font-size:17px;padding:16px 28px}
+footer .wrap{padding-block:28px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:14px;color:var(--muted);font-size:14px}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--pink);color:#1a0616;padding:10px 18px;border-radius:99px;font-weight:700;font-size:14px;z-index:20}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}html{scroll-behavior:auto}}
+</style>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
+
+<header class="hero"><div class="wrap">
+  <div>
+    <h1><span class="script">Ein Klick und du bist drin</span>Der Launcher</h1>
+    <p class="lead">Der offizielle Launcher von Real Life Southland III. Ein Klick auf Spielen startet FiveM und verbindet dich direkt mit dem Server. Dazu News, Countdown, Galerie und Regeln.</p>
+    <div class="dl-row">
+      <a class="btn btn-pink dl" href="#" data-dl target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-5-5m5 5 5-5M4 19h16"/></svg>
+        <span>Launcher herunterladen<small>Setup.exe für Windows</small></span>
+      </a>
+      <a class="btn btn-ghost" href="#anleitung">Zur Anleitung</a>
+    </div>
+    <div class="facts">
+      <span class="fact">Version <b id="dlVer">1.6.0</b></span>
+      <span class="fact" id="dlSizeBox" hidden>Größe <b id="dlSize"></b></span>
+      <span class="fact"><b>Windows</b> 10 &amp; 11</span>
+      <span class="fact"><b>Kostenlos</b></span>
+    </div>
+    <div class="hash" id="hashBox" hidden><span>SHA-256:</span><code id="sha"></code><button type="button" data-copy="sha">Kopieren</button></div>
+  </div>
+  <div class="window"><img src="launcher-shot.jpg" alt="Startseite des Real Life Southland Launchers mit Countdown und Spielen-Button"></div>
+</div></header>
+
+<main>
+<section><div class="wrap">
+  <div class="sec-head"><h2><span class="script">Was er kann</span>Features</h2><p>Alles rund um Southland an einem Ort. News und Release-Infos kommen automatisch, ohne neuen Download.</p></div>
+  <div class="features">
+    <div class="feat"><img src="launcher-shot.jpg" alt="Spielen-Button und Countdown"><div class="in"><h3>Ein Klick zum Server</h3><p>Kein F8, kein Serverbrowser. Spielen drücken, FiveM startet und verbindet direkt.</p></div></div>
+    <div class="feat"><img src="launcher-shot-2.jpg" alt="Galerie im Launcher"><div class="in"><h3>News &amp; Galerie</h3><p>Neuigkeiten, Screenshots und Regeln immer aktuell, direkt im Launcher.</p></div></div>
+    <div class="feat"><img src="launcher-shot-3.jpg" alt="Changelog im Launcher"><div class="in"><h3>Changelog &amp; Musik</h3><p>Alle Updates auf einen Blick. Dazu ein eigener Southland-Soundtrack.</p></div></div>
+  </div>
+</div></section>
+
+<section id="anleitung"><div class="wrap">
+  <div class="sec-head"><h2><span class="script">So geht's</span>Anleitung</h2><p>In fünf Schritten vom Download bis auf den Server.</p></div>
+
+  <div class="req">
+    <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="3"/><path d="M7 12h3M8.5 10.5v3M15 11h.01M17 13h.01"/></svg><div><b>GTA V (PC)</b><span>Steam, Epic oder Rockstar Launcher</span></div></div>
+    <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8v8l9 5 9-5V8z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg><div><b>FiveM</b><span>Kostenlos auf <a href="https://fivem.net/" target="_blank" rel="noopener">fivem.net</a></span></div></div>
+    <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg><div><b>Windows 10 / 11</b><span>Mit Internetverbindung</span></div></div>
+  </div>
+
+  <ol class="steps">
+    <li class="step"><div class="body">
+      <h3>Herunterladen</h3>
+      <p>Klick oben auf <b>„Launcher herunterladen“</b>. Der Download der Setup-Datei startet sofort.</p>
+      <p>Dein Browser fragt eventuell nach, ob du die Datei behalten willst, weil sie selten heruntergeladen wird. Dann auf <b>„Behalten“</b> klicken.</p>
+    </div></li>
+
+    <li class="step"><div class="body">
+      <h3>Setup starten</h3>
+      <p>Die Datei im Download-Ordner doppelt anklicken. Weil der Launcher noch kein gekauftes Windows-Zertifikat hat, zeigt Windows beim ersten Mal eine blaue Warnung. Das ist bei kleinen Server-Launchern normal.</p>
+      <p>Klick zuerst auf <b>„Weitere Informationen“</b> und danach auf <b>„Trotzdem ausführen“</b>:</p>
+      <div class="smart-pair">
+        <div>
+          <div class="smart-cap">1. „Weitere Informationen“</div>
+          <div class="smart" aria-hidden="true"><div class="top"><div class="t">Der Computer wurde durch Windows geschützt</div><div class="d">Von Microsoft Defender SmartScreen wurde der Start einer unbekannten App verhindert.</div><span class="lnk hl">Weitere Informationen</span></div><div class="bot"><span>Nicht ausführen</span></div></div>
+        </div>
+        <div>
+          <div class="smart-cap">2. „Trotzdem ausführen“</div>
+          <div class="smart" aria-hidden="true"><div class="top"><div class="t">Der Computer wurde durch Windows geschützt</div><div class="d">App: Real Life Southland Setup <span class="dlv">1.6.0</span>.exe<br>Herausgeber: Unbekannter Herausgeber</div></div><div class="bot"><span class="run hl">Trotzdem ausführen</span><span>Nicht ausführen</span></div></div>
+        </div>
+      </div>
+    </div></li>
+
+    <li class="step"><div class="body">
+      <h3>Installieren</h3>
+      <p>Den Installer durchklicken. Du kannst den Speicherort ändern oder einfach so lassen. Am Ende hast du eine Verknüpfung <b>„Real Life Southland“</b> auf dem Desktop und im Startmenü.</p>
+    </div></li>
+
+    <li class="step"><div class="body">
+      <h3>Launcher öffnen</h3>
+      <p>Der Launcher startet im Vollbild. Mit <kbd>F11</kbd> wechselst du zwischen Vollbild und Fenster. Unten links siehst du, ob FiveM gefunden wurde und ob der Server online ist.</p>
+    </div></li>
+
+    <li class="step"><div class="body">
+      <h3>Spielen</h3>
+      <p>Auf <b>„Spielen“</b> klicken. FiveM startet und verbindet dich direkt mit Southland. Der Launcher minimiert sich und die Musik geht aus.</p>
+      <p>Steht dort noch <b>„Coming Soon“</b>, ist der Server noch nicht released. Der Launcher schaltet sich zum Release automatisch frei, du musst nichts neu herunterladen.</p>
+    </div></li>
+  </ol>
+</div></section>
+
+<section id="probleme"><div class="wrap">
+  <div class="sec-head"><h2><span class="script">Klappt was nicht?</span>Hilfe</h2><p>Die häufigsten Probleme und wie du sie löst. Sonst einfach ein Ticket im Discord.</p></div>
+  <div class="faq">
+    <details open><summary>Windows blockiert den Launcher komplett (Smart App Control)</summary><div class="body">
+      <p>Auf manchen Windows-11-PCs ist „Intelligente App-Steuerung“ aktiv. Sie blockiert alle Programme ohne gekauftes Zertifikat, auch ohne „Trotzdem ausführen“. Wir empfehlen nicht, diese Schutzfunktion abzuschalten.</p>
+      <p>Du kannst trotzdem spielen: FiveM öffnen, <kbd>F8</kbd> drücken und diesen Befehl eingeben:</p>
+      <div class="cmd"><code id="cmd1">connect cfx.re/join/qqabgvz</code><button class="copy" type="button" data-copy="cmd1">Kopieren</button></div>
+    </div></details>
+    <details><summary>Mein Virenscanner meldet die Datei</summary><div class="body">
+      <p>Manche Virenscanner schlagen bei neuen, unsignierten Programmen falsch Alarm. Lade den Launcher nur über den Button auf dieser Seite herunter. Wenn du sicher gehen willst, vergleich den SHA-256-Wert oben mit dem deiner Datei oder lade sie bei virustotal.com hoch.</p>
+    </div></details>
+    <details><summary>„FiveM nicht gefunden“</summary><div class="body">
+      <p>Der Launcher sucht FiveM am Standard-Speicherort. Installiere FiveM von <a href="https://fivem.net/" target="_blank" rel="noopener" style="color:var(--pink)">fivem.net</a>, starte es einmal und öffne danach den Launcher neu.</p>
+    </div></details>
+    <details><summary>„Verbindung fehlgeschlagen“ in FiveM</summary><div class="body">
+      <p>Meist ist der Server gerade nicht erreichbar, z. B. wegen eines Neustarts oder weil er noch nicht released ist. Schau im Discord nach dem Status und versuch es in ein paar Minuten erneut.</p>
+    </div></details>
+    <details><summary>Die Musik ist zu laut oder nervt</summary><div class="body">
+      <p>Oben rechts im Launcher kannst du die Musik pausieren, stummschalten oder leiser stellen. Der Launcher merkt sich deine Einstellung.</p>
+    </div></details>
+    <details><summary>Wie deinstalliere ich den Launcher?</summary><div class="body">
+      <p>Windows-Einstellungen → <b>Apps</b> → <b>Installierte Apps</b> → „Real Life Southland“ suchen → <b>Deinstallieren</b>.</p>
+    </div></details>
+  </div>
+</div></section>
+</main>
+
+<div class="cta"><div class="wrap">
+  <h2><span class="script">Bereit?</span>Hol dir den Launcher.</h2>
+  <a class="btn" href="#" data-dl target="_blank" rel="noopener">Jetzt herunterladen</a>
+</div></div>
+
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
+
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// ===== DOWNLOAD-LINK =====
+// Standard-Link, falls das Team-Panel nicht erreichbar ist. Den aktuellen Link
+// trägst du im Team-Panel unter „Launcher → Download“ ein, dann ist hier nichts zu ändern.
+let DOWNLOAD_URL = 'https://www.dropbox.com/scl/fi/jlrknch6vuxjc01t0plbf/Real-Life-Southland-Setup-1.6.0.exe?rlkey=1azaxh4ahkkrcyo0ovikppefw&st=sejctbcj&dl=1';
+
+const toast=document.getElementById('toast');let tt;
+const show=m=>{toast.textContent=m;toast.hidden=false;clearTimeout(tt);tt=setTimeout(()=>toast.hidden=true,1800)};
+document.querySelectorAll('[data-copy]').forEach(b=>b.addEventListener('click',()=>{
+  const el=document.getElementById(b.dataset.copy);
+  const sel=()=>{const r=document.createRange();r.selectNodeContents(el);const s=getSelection();s.removeAllRanges();s.addRange(r);show('Markiert – mit Strg+C kopieren')};
+  try{navigator.clipboard.writeText(el.textContent).then(()=>show('Kopiert'),sel)}catch(e){sel()}
+}));
+
+// Download-Buttons verdrahten
+const wireDl=()=>document.querySelectorAll('[data-dl]').forEach(a=>{
+  if(DOWNLOAD_URL){ a.href=DOWNLOAD_URL; a.target='_blank'; a.rel='noopener'; a.onclick=null; const sm=a.querySelector('small'); if(sm) sm.textContent='Setup.exe für Windows'; }
+  else{
+    a.href='#'; a.onclick=e=>{e.preventDefault();show('Download kommt in Kürze. Infos im Discord!')};
+    const sm=a.querySelector('small'); if(sm) sm.textContent='Kommt in Kürze';
+  }
+});
+wireDl();
+// Aktuellen Link, Version, Größe und Prüfsumme aus dem Team-Panel holen
+fetch('/api/launcher').then(r=>r.ok?r.json():null).then(d=>{
+  const dl=d&&d.download; if(!dl) return;
+  if(dl.url){ DOWNLOAD_URL=dl.url; wireDl(); }
+  if(dl.version){ document.getElementById('dlVer').textContent=dl.version; document.querySelectorAll('.dlv').forEach(e=>e.textContent=dl.version); }
+  if(dl.size){ document.getElementById('dlSize').textContent=dl.size; document.getElementById('dlSizeBox').hidden=false; }
+  if(dl.sha256){ document.getElementById('sha').textContent=dl.sha256; document.getElementById('hashBox').hidden=false; }
+}).catch(()=>{});
+</script>
+<script src="site.js"></script>
+</body>
+</html>

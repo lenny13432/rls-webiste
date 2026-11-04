@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Team-Panel – Real Life Southland</title>
+<link rel="icon" href="../logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="../bewerbung.css">
+<link rel="stylesheet" href="panel.css">
+<style>[hidden]{display:none!important}</style>
+</head>
+<body class="is-admin">
+<header class="mtop" id="mtop" hidden>
+  <button class="mt-btn" id="sbOpen" aria-label="Menü öffnen"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <b id="mTitle">Team-Panel</b>
+  <button class="mt-btn" data-cmdk aria-label="Suchen"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg></button>
+</header>
+
+<div class="shell">
+  <aside class="sb" id="sb" hidden>
+    <a class="sb-brand" href="#start"><img src="../logo.png" alt=""><span>Southland<small>Team-Panel</small></span></a>
+    <button class="sb-search" data-cmdk><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>Suchen…<kbd>Strg K</kbd></button>
+    <nav class="sb-nav">
+      <p>Admin</p>
+      <a href="#start" data-nav="start"><svg viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5V20h-5v-5H9v5H4z"/></svg>Übersicht</a>
+      <a href="#liste" data-nav="liste"><svg viewBox="0 0 24 24"><path d="M8 4h8l3 3v13H5V4h3m1 7h6m-6 4h6"/></svg>Bewerbungen<b class="badge" id="bApps" hidden></b></a>
+      <a href="#spieler" data-nav="spieler"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-4 3.6-6 7-6s6.2 2 7 6"/></svg>Spielerakten</a>
+      <a href="#news" data-nav="news"><svg viewBox="0 0 24 24"><path d="M5 5h11v14H6a1 1 0 0 1-1-1zm11 4h3v9a1 1 0 0 1-1 1h-2M8 9h5m-5 4h5"/></svg>Website-News</a>
+      <a href="#social" data-nav="social"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6M8.2 13.2l7.6 3.6"/></svg>Social Media</a>
+      <a href="#regelwerk" data-nav="regelwerk"><svg viewBox="0 0 24 24"><path d="M12 4v16M6 20h12M5 8h14M7.5 8 5 14a2.5 2.5 0 0 0 5 0zm9 0L14 14a2.5 2.5 0 0 0 5 0z"/></svg>Regelwerk</a>
+      <a href="#launcher" data-nav="launcher"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M10 9l4 2-4 2zM8 20h8"/></svg>Launcher</a>
+      <a href="#team" data-nav="team"><svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5m1-4.6c2.3-.3 4 1.2 4.5 4.6"/></svg>Konten &amp; Rechte</a>
+      <a href="#protokoll" data-nav="protokoll"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4.5l3 2"/></svg>Protokoll</a>
+      <a href="#einstellungen" data-nav="einstellungen" id="navSettings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v2.5m0 13V21m9-9h-2.5m-13 0H3m15.4-6.4-1.8 1.8M7.4 16.6l-1.8 1.8m12.8 0-1.8-1.8M7.4 7.4 5.6 5.6"/></svg>Einstellungen</a>
+      <p>Team</p>
+      <a href="#teamliste" data-nav="teamliste"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><circle cx="12" cy="10" r="2.6"/><path d="M7.5 17c.7-2 2.4-3 4.5-3s3.8 1 4.5 3"/></svg>Teamliste</a>
+      <a href="#kalender" data-nav="kalender"><svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2"/><path d="M4 10h16M8.5 3.5v4m7-4v4"/></svg>Kalender</a>
+      <a href="#abstimmungen" data-nav="abstimmungen"><svg viewBox="0 0 24 24"><path d="M5 12l4 4 10-10"/><path d="M4 20h16"/></svg>Abstimmungen</a>
+      <a href="#vorlagen" data-nav="vorlagen"><svg viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="12" rx="2"/><path d="M5 16V5a1 1 0 0 1 1-1h9"/></svg>Textbausteine</a>
+      <a href="#statistik" data-nav="statistik"><svg viewBox="0 0 24 24"><path d="M5 20V11m5 9V5m5 15v-7m5 7V9"/></svg>Statistik</a>
+      <p>Dev</p>
+      <a href="#dev" data-nav="dev"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="4.5" height="14" rx="1"/><rect x="10" y="5" width="4.5" height="9" rx="1"/><rect x="16" y="5" width="4" height="11" rx="1"/></svg>To-do-Board</a>
+      <a href="#roadmap" data-nav="roadmap"><svg viewBox="0 0 24 24"><path d="M5 20V4m0 1h11l-2 3.5 2 3.5H5"/></svg>Roadmap</a>
+      <a href="#bugs" data-nav="bugs"><svg viewBox="0 0 24 24"><rect x="7.5" y="7" width="9" height="12" rx="4.5"/><path d="M12 11v8M4 11h3.5m9 0H20M4.5 17H7.5m9 0h3M9 7l-1.5-2.5M15 7l1.5-2.5"/></svg>Bugs<b class="badge red" id="bBugs" hidden></b></a>
+      <a href="#scripts" data-nav="scripts"><svg viewBox="0 0 24 24"><path d="m9 8-4 4 4 4m6-8 4 4-4 4"/></svg>Scripts</a>
+      <a href="#wiki" data-nav="wiki"><svg viewBox="0 0 24 24"><path d="M5 5.5C7 4.5 9.5 4.5 12 6c2.5-1.5 5-1.5 7-.5V19c-2-1-4.5-1-7 .5-2.5-1.5-5-1.5-7-.5zM12 6v13.5"/></svg>Wiki</a>
+    </nav>
+    <div class="sb-online"><p><span class="live-dot"></span>Gerade online</p><div id="onlineList"></div></div>
+    <div class="sb-me">
+      <span class="ava" id="meAva"></span>
+      <div><b id="whoami"></b><a href="#konto">Mein Konto</a></div>
+      <button id="logout" title="Abmelden" aria-label="Abmelden"><svg viewBox="0 0 24 24"><path d="M14 5h4v14h-4M10 8l-4 4 4 4M6 12h9"/></svg></button>
+    </div>
+    <a class="sb-site" href="../">← Zur Website</a>
+  </aside>
+  <main id="app"><div class="loading">Wird geladen…</div></main>
+</div>
+<div class="sb-scrim" id="sbScrim"></div>
+<div class="live-bar" id="liveBar" hidden><span id="liveText">Es gibt neue Änderungen.</span><button class="btn btn-pink sm" id="liveBtn">Aktualisieren</button></div>
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="panel-dev.js"></script>
+<script src="panel-team.js"></script>
+<script src="panel-rules.js"></script>
+<script src="panel-social.js"></script>
+<script src="../site.js"></script>
+<script src="panel.js"></script>
+</body>
+</html>

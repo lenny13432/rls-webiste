@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fraktion gründen – Real Life Southland</title>
+<link rel="icon" href="logo.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;800;900&family=Yellowtail&family=Barlow:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="bewerbung.css">
+<style>
+/* Fraktion gründen: Behörden-Ablauf als Zeitleiste, Bankkonditionen, Geschäftsarten und Live-Gründungsplaner */
+.f-hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.f-hero::before{content:"";position:absolute;inset:0;background:url(banner.jpg) center 40%/cover;opacity:.18}
+.f-hero::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,var(--night) 30%,#120b26cc 65%,#120b2666),linear-gradient(to top,var(--night),transparent 60%)}
+.f-hero .wrap{position:relative;z-index:1;display:grid;grid-template-columns:1.2fr 1fr;gap:40px;align-items:center;padding-block:64px 56px}
+.f-hero .wrap > *{min-width:0}
+@media (max-width:860px){.f-hero .wrap{grid-template-columns:1fr;padding-block:44px}}
+.f-hero h1{font-size:clamp(46px,7vw,84px);font-weight:900}
+.f-hero h1 .script{display:block;font-size:.65em;margin-bottom:4px;text-shadow:0 0 30px #ff4fb388}
+.f-hero p{color:var(--muted);font-size:18px;max-width:52ch}
+.f-hero .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.kpi{padding:18px;border-radius:16px;background:#1b1238d9;border:1px solid var(--line);backdrop-filter:blur(8px)}
+.kpi b{display:block;font:900 30px/1.05 var(--heavy);font-variant-numeric:tabular-nums}
+.kpi span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-weight:700}
+.kpi.hl b{color:var(--pink)}
+
+section.f{padding-block:72px}
+section.f + section.f{border-top:1px solid var(--line)}
+.f-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:16px;margin-bottom:34px}
+.f-head > *{min-width:0}
+.f-head h2{font-size:clamp(30px,5.5vw,60px);font-weight:900;overflow-wrap:break-word;hyphens:auto}
+.f-head h2 .script{display:block;font-size:.72em;margin-bottom:-2px}
+.f-head p{color:var(--muted);max-width:46ch;margin:0}
+
+/* Ablauf */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:s;position:relative}
+.steps::before{content:"";position:absolute;left:31px;top:10px;bottom:10px;width:2px;background:linear-gradient(var(--pink),var(--violet) 70%,transparent)}
+@media (max-width:640px){.steps::before{display:none}}
+.step{counter-increment:s;position:relative;display:grid;grid-template-columns:64px 1fr;gap:18px;align-items:start}
+@media (max-width:640px){.step{grid-template-columns:1fr;gap:10px}}
+.step::before{content:counter(s);display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--violet),var(--pink));font:900 26px var(--heavy);box-shadow:0 0 0 6px var(--night),0 0 30px #ff4fb355;position:relative;z-index:1}
+.step .card{padding:20px 22px;display:grid;gap:10px;min-width:0}
+.step h3{font-size:22px;font-weight:900}
+.step p{margin:0;color:var(--muted)}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tag{display:inline-flex;align-items:center;gap:6px;font:600 13px var(--body);padding:5px 11px;border-radius:99px;background:var(--night);border:1px solid var(--line);color:var(--muted)}
+.tag b{color:var(--fg);font-weight:700}
+.tag.money b{color:var(--ok)}
+.need{margin:0;padding-left:18px;color:var(--muted);font-size:15px;display:grid;gap:2px}
+.need li::marker{color:var(--pink)}
+
+/* Bank */
+.bank{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;align-items:start}
+@media (max-width:900px){.bank{grid-template-columns:1fr}}
+.bank > *{min-width:0}
+.rules{display:grid;gap:10px}
+.rule{padding:16px 18px;border-radius:14px;background:var(--night-2);border:1px solid var(--line)}
+.rule b{display:block;margin-bottom:2px}
+.rule p{margin:0;color:var(--muted);font-size:15px}
+.rule.warn{border-color:#ff5a6e55;background:#ff5a6e0d}
+td.money,th.money{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr.static{cursor:default}
+
+/* Kaufen oder pachten */
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.vs{grid-template-columns:1fr}}
+.vs .card{padding:22px;display:grid;gap:10px;align-content:start}
+.vs h3{font-size:24px}
+.pro,.con{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:15px}
+.pro li::before{content:"+ ";color:var(--ok);font-weight:900}
+.con li::before{content:"– ";color:var(--bad);font-weight:900}
+
+/* Geschäftsarten */
+.types{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:960px){.types{grid-template-columns:1fr 1fr}}
+@media (max-width:600px){.types{grid-template-columns:1fr}}
+.type{padding:22px;display:grid;gap:10px;align-content:start;position:relative;overflow:hidden;transition:border-color .2s, transform .2s}
+.type::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--c,var(--pink))}
+.type:hover{border-color:var(--c,var(--pink));transform:translateY(-3px)}
+.type h3{font-size:22px}
+.type .big{font:900 26px var(--heavy);font-variant-numeric:tabular-nums}
+.type .big small{font:600 13px var(--body);color:var(--muted)}
+.type dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.type dt{color:var(--muted)}
+.type dd{margin:0;text-align:right;font-variant-numeric:tabular-nums}
+.type button{justify-self:start}
+
+/* Planer */
+.planner{display:grid;grid-template-columns:1.05fr 1fr;gap:22px;align-items:start}
+@media (max-width:960px){.planner{grid-template-columns:1fr}}
+.planner > *{min-width:0}
+.planner .card{padding:24px}
+.p-sec{display:grid;gap:14px}
+.p-sec + .p-sec{border-top:1px solid var(--line);padding-top:20px;margin-top:20px}
+.p-sec h3{font-size:18px;display:flex;align-items:center;gap:10px}
+.p-sec h3 i{font:900 13px var(--heavy);font-style:normal;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--violet),var(--pink))}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{font:700 14px var(--body);color:var(--muted);background:var(--night);border:1px solid var(--line);border-radius:999px;padding:8px 14px;cursor:pointer}
+.seg button.on{background:linear-gradient(90deg,var(--pink),var(--sunset));color:#1a0616;border-color:transparent}
+.money-in{position:relative}
+.money-in input{padding-left:30px!important;font-variant-numeric:tabular-nums}
+.money-in::before{content:"$";position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--muted);font-weight:700;pointer-events:none}
+.range-row{display:grid;grid-template-columns:1fr 90px;gap:12px;align-items:center}
+.range-row input[type=range]{width:100%;accent-color:var(--pink)}
+.range-row output{font:700 15px var(--mono);text-align:right}
+.sum{position:sticky;top:90px;display:grid;gap:16px}
+@media (max-width:960px){.sum{position:static}}
+.sum h3{font-size:20px}
+.lines{display:grid;gap:0;font-size:15px}
+.lines div{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px dashed var(--line)}
+.lines div span:last-child{font-variant-numeric:tabular-nums;font-weight:700;white-space:nowrap}
+.lines .total{border-bottom:0;padding-top:12px;font-size:18px}
+.lines .total span:last-child{color:var(--pink);font:900 22px var(--heavy)}
+.lines .sub{color:var(--muted);font-size:14px}
+.bar{height:12px;border-radius:99px;background:var(--night);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:13px;color:var(--muted)}
+.legend span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;background:var(--c);vertical-align:-1px}
+.big-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.big-kpis div{padding:14px;border-radius:14px;background:var(--night);border:1px solid var(--line)}
+.big-kpis b{display:block;font:900 24px var(--heavy);font-variant-numeric:tabular-nums}
+.big-kpis span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:700}
+.checks{display:grid;gap:8px}
+.check-row{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:12px;font-size:14px}
+.check-row b{display:block}
+.check-row .dot{flex:none;width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:900 12px var(--heavy);margin-top:1px}
+.check-row.ok{background:#4fe0a012}.check-row.ok .dot{background:var(--ok);color:#06231a}
+.check-row.warn{background:#ffc04f12}.check-row.warn .dot{background:var(--warn);color:#2a1d00}
+.check-row.bad{background:#ff5a6e14}.check-row.bad .dot{background:var(--bad);color:#2a0710}
+.concept{font:500 13px/1.55 var(--mono);white-space:pre-wrap;background:var(--night);border:1px solid var(--line);border-radius:12px;padding:14px;max-height:260px;overflow:auto;color:var(--muted)}
+
+/* Pflichten */
+.duties{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media (max-width:860px){.duties{grid-template-columns:1fr}}
+.duties .card{padding:22px;display:grid;gap:8px;align-content:start}
+.duties h3{font-size:20px}
+.duties p{margin:0;color:var(--muted);font-size:15px}
+.cta-band{background:linear-gradient(120deg,#2a1a8a,#9b2f9e,#ff6a4a)}
+.cta-band .wrap{padding-block:56px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:22px}
+.cta-band h2{font-size:clamp(34px,5vw,56px);font-weight:900}
+.cta-band h2 .script{display:block;color:#fff;font-size:.75em}
+.cta-band .btn{background:#120b26;color:#fff;font-size:17px;padding:15px 26px}
+.note-s{font-size:13px;color:var(--muted);margin:0}
+</style>
+<style>[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="rls-nav" role="navigation"><div class="rls-in">
+  <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
+  <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
+  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+</div></div>
+
+<header class="f-hero"><div class="wrap">
+  <div>
+    <h1><span class="script">Dein eigenes Business</span>Fraktion gründen</h1>
+    <p>Werkstatt, Bar, Autohaus oder Taxi-Firma: In Southland gründest du wie im echten Leben. Gewerbe beim Rathaus anmelden, Kredit bei der Bank holen, Gebäude beantragen, einkaufen, Leute einstellen und dann Geld verdienen.</p>
+    <div class="row"><a class="btn btn-pink" href="#planer">Gründungsplaner öffnen</a><a class="btn btn-ghost" href="#ablauf">So läuft es ab</a></div>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b>7</b><span>Schritte bis zur Eröffnung</span></div>
+    <div class="kpi hl"><b id="kMin">$ 0</b><span>Startkosten ab</span></div>
+    <div class="kpi"><b>20 %</b><span>Eigenkapital nötig</span></div>
+    <div class="kpi hl"><b id="kMax">$ 0</b><span>Kredit bis zu</span></div>
+  </div>
+</div></header>
+
+<main>
+<!-- ============ ABLAUF ============ -->
+<section class="f" id="ablauf"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Vom Plan zur Eröffnung</span>Der Ablauf</h2><p>Jeder Schritt wird im RP ausgespielt. Behörden, Bank und Bauamt sind echte Spieler oder Teammitglieder.</p></div>
+  <ol class="steps">
+    <li class="step"><div class="card">
+      <h3>Konzept schreiben &amp; einreichen</h3>
+      <p>Bevor es losgeht, braucht das Team dein Konzept. Erst nach der Freigabe darfst du im Spiel gründen.</p>
+      <div class="tags"><span class="tag">Wo: <b>Discord-Ticket</b></span><span class="tag">Dauer: <b>1–3 Tage</b></span><span class="tag money">Kosten: <b>$ 0</b></span></div>
+      <ul class="need"><li>Name, Art des Unternehmens, Standort-Wunsch</li><li>Wer gründet, wer arbeitet mit (mind. 2 Personen)</li><li>Finanzplan aus dem Gründungsplaner unten</li></ul>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Gewerbe beim Rathaus anmelden</h3>
+      <p>Im Rathaus meldest du dein Gewerbe an. Die Stadt prüft deine Akte und vergibt eine Steuernummer.</p>
+      <div class="tags"><span class="tag">Wo: <b>Rathaus</b></span><span class="tag">Dauer: <b>ein Termin</b></span><span class="tag money">Gewerbeschein: <b id="tGew">$ 0</b></span></div>
+      <ul class="need"><li>Ausweis und genehmigtes Konzept</li><li>Keine offenen Haftbefehle oder Strafzettel</li><li>Charakter seit mindestens 14 Tagen in der Stadt</li></ul>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Geschäftskonto &amp; Kredit bei der Bank</h3>
+      <p>Mit Gewerbeschein eröffnest du ein Geschäftskonto. Reicht dein Geld nicht, beantragst du einen Kredit. Die Bank prüft Eigenkapital, Bonität und Businessplan.</p>
+      <div class="tags"><span class="tag">Wo: <b>Pacific Standard Bank</b></span><span class="tag">Dauer: <b>1–2 Tage</b></span><span class="tag money">Kontoeröffnung: <b id="tKonto">$ 0</b></span></div>
+      <ul class="need"><li>Gewerbeschein und Finanzplan</li><li>Mindestens 20 % der Startkosten als Eigenkapital</li><li>Bei schwacher Bonität: ein Bürge</li></ul>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Gebäude bei der Stadt beantragen</h3>
+      <p>Beim Bauamt beantragst du ein freies Gebäude, entweder zum Kauf oder zur Pacht. Für Umbauten brauchst du eine Genehmigung.</p>
+      <div class="tags"><span class="tag">Wo: <b>Bauamt im Rathaus</b></span><span class="tag">Dauer: <b>2–4 Tage</b></span><span class="tag money">Kaufvertrag/Notar: <b>1,5 % vom Preis</b></span></div>
+      <ul class="need"><li>Kauf: Kaufpreis plus Notargebühr</li><li>Pacht: 2 Wochenpachten als Kaution</li><li>Umbaugenehmigung, wenn du etwas veränderst</li></ul>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Einrichten &amp; einkaufen</h3>
+      <p>Jetzt wird es teuer: Einrichtung, Firmenfahrzeuge, erste Ware und die nötigen Lizenzen. Alles wird über das Geschäftskonto bezahlt und belegt.</p>
+      <div class="tags"><span class="tag">Wo: <b>Händler, Autohaus, Behörden</b></span><span class="tag">Dauer: <b>3–7 Tage</b></span></div>
+      <ul class="need"><li>Lizenzen je nach Geschäft (z. B. Ausschank, Bewachung, Personenbeförderung)</li><li>Firmenfahrzeuge mit Firmenlackierung</li><li>Rechnungen aufheben, die Stadt kann prüfen</li></ul>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Personal einstellen</h3>
+      <p>Stell Mitarbeiter mit Arbeitsvertrag ein. Löhne gehen wöchentlich vom Geschäftskonto ab. Halte eine Reserve für mindestens 2 Wochen Löhne.</p>
+      <div class="tags"><span class="tag">Wo: <b>Jobcenter oder eigenes Bewerbungsgespräch</b></span><span class="tag money">Mindestlohn: <b id="tMin">$ 0</b> / Woche</span></div>
+    </div></li>
+    <li class="step"><div class="card">
+      <h3>Eröffnung &amp; Abnahme</h3>
+      <p>Das Bauamt nimmt den Laden ab, dann darfst du eröffnen. Nach 4 Wochen prüft die Stadt, ob das Unternehmen wirklich aktiv ist.</p>
+      <div class="tags"><span class="tag">Wo: <b>Vor Ort</b></span><span class="tag">Prüfung: <b>nach 4 Wochen</b></span></div>
+    </div></li>
+  </ol>
+</div></section>
+
+<!-- ============ BANK ============ -->
+<section class="f" id="bank"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Pacific Standard</span>Bank &amp; Kredit</h2><p>Kredite gibt es nur für Unternehmen mit Gewerbeschein. Die Zinsen hängen von deiner Bonität ab.</p></div>
+  <div class="bank">
+    <div class="table-wrap"><table>
+      <thead><tr><th>Bonität</th><th>Wann?</th><th class="money">Zinsen gesamt</th><th class="money">Max. Kredit</th></tr></thead>
+      <tbody id="bonTable"></tbody>
+    </table></div>
+    <div class="rules">
+      <div class="rule"><b>Mindestens 20 % Eigenkapital</b><p>Die Bank finanziert höchstens 80 % der Startkosten. Den Rest bringst du selbst mit.</p></div>
+      <div class="rule"><b>Wöchentliche Rate</b><p>Laufzeit 4 bis 16 Wochen. Die Rate wird jeden Montag vom Geschäftskonto abgebucht. Bearbeitungsgebühr: <span id="rFee">1 %</span>.</p></div>
+      <div class="rule"><b>Das Gebäude ist die Sicherheit</b><p>Gekaufte Gebäude gehen als Sicherheit an die Bank, bis der Kredit abbezahlt ist.</p></div>
+      <div class="rule warn"><b>Wenn du nicht zahlst</b><p>1. Rate verpasst: Mahnung plus <span id="rMahn">$ 0</span>. 2. Rate: Konto wird gesperrt. 3. Rate: Pfändung, das Gebäude geht an die Stadt zurück und die Fraktion wird aufgelöst.</p></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ============ KAUFEN ODER PACHTEN ============ -->
+<section class="f"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Beim Bauamt</span>Kaufen oder pachten?</h2><p>Beides wird beim Bauamt beantragt. Die Entscheidung hängt von deinem Startkapital ab.</p></div>
+  <div class="vs">
+    <div class="card"><span class="pill st-offen" style="justify-self:start">Kaufen</span><h3>Einmal teuer, dann deins</h3>
+      <ul class="pro"><li>Keine wöchentliche Pacht</li><li>Gebäude kann später verkauft werden</li><li>Dient der Bank als Sicherheit</li></ul>
+      <ul class="con"><li>Hohe Startkosten plus 1,5 % Notar</li><li>Meist nur mit Kredit machbar</li></ul></div>
+    <div class="card"><span class="pill st-pruefung" style="justify-self:start">Pachten</span><h3>Günstig starten</h3>
+      <ul class="pro"><li>Nur 2 Wochenpachten Kaution</li><li>Ideal, um erst zu testen</li><li>Später Kauf möglich</li></ul>
+      <ul class="con"><li>Pacht jede Woche, auch in schwachen Wochen</li><li>Nach 2 verpassten Zahlungen: Kündigung</li></ul></div>
+  </div>
+</div></section>
+
+<!-- ============ GESCHÄFTSARTEN ============ -->
+<section class="f" id="arten"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Was willst du aufmachen?</span>Geschäftsarten</h2><p>Richtwerte für die Startkosten beim Kauf des Gebäudes. Klick auf „Durchrechnen“, um direkt im Planer zu starten.</p></div>
+  <div class="types" id="types"></div>
+  <p class="note-s" style="margin-top:16px">Gangs und illegale Fraktionen laufen nicht über Rathaus und Bank. Dafür gibt es ein eigenes Konzept bei der Projektleitung.</p>
+</div></section>
+
+<!-- ============ PLANER ============ -->
+<section class="f" id="planer"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Rechne es durch</span>Gründungsplaner</h2><p>Stell dein Unternehmen zusammen. Der Planer rechnet Startkosten, Kredit, Wochenrate und Gewinn live aus und prüft, ob die Bank zustimmt.</p></div>
+  <div class="planner">
+    <div class="card">
+      <div class="p-sec">
+        <h3><i>1</i>Unternehmen</h3>
+        <label class="field"><span>Name deines Unternehmens</span><input id="pName" maxlength="60" placeholder="z. B. Southside Customs"></label>
+        <div class="field"><span>Art</span><div class="seg" id="segType"></div></div>
+        <div class="field"><span>Gebäude</span><div class="seg" id="segBuild"><button data-v="kauf" class="on">Kaufen</button><button data-v="pacht">Pachten</button></div></div>
+      </div>
+      <div class="p-sec">
+        <h3><i>2</i>Ausstattung</h3>
+        <div class="grid2">
+          <label class="field"><span>Einrichtung</span><div class="money-in"><input id="pEquip" type="number" min="0" step="500"></div></label>
+          <label class="field"><span>Startware / Ausrüstung</span><div class="money-in"><input id="pStock" type="number" min="0" step="500"></div></label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Firmenfahrzeuge <small>(Anzahl)</small></span><input id="pCars" type="number" min="0" max="20"></label>
+          <label class="field"><span>Preis pro Fahrzeug</span><div class="money-in"><input id="pCarPrice" type="number" min="0" step="500"></div></label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Mitarbeiter</span><input id="pStaff" type="number" min="1" max="30"></label>
+          <label class="field"><span>Lohn pro Mitarbeiter / Woche</span><div class="money-in"><input id="pWage" type="number" min="0" step="50"></div></label>
+        </div>
+      </div>
+      <div class="p-sec">
+        <h3><i>3</i>Finanzierung</h3>
+        <label class="field"><span>Dein Eigenkapital</span><div class="money-in"><input id="pOwn" type="number" min="0" step="1000"></div></label>
+        <div class="field"><span>Bonität</span><div class="seg" id="segBon"></div></div>
+        <div class="field"><span>Laufzeit des Kredits</span><div class="range-row"><input id="pWeeks" type="range" min="4" max="16" step="1" value="12"><output id="oWeeks">12 Wochen</output></div></div>
+        <label class="field"><span>Erwarteter Umsatz pro Woche</span><div class="money-in"><input id="pRev" type="number" min="0" step="500"></div><span class="hint"><span>Richtwert steht schon drin. Sei lieber vorsichtig.</span></span></label>
+      </div>
+    </div>
+
+    <aside class="card sum">
+      <h3 id="sTitle">Dein Finanzplan</h3>
+      <div>
+        <div class="bar" id="bar"></div>
+        <div class="legend" id="legend" style="margin-top:8px"></div>
+      </div>
+      <div class="lines" id="lines"></div>
+      <div class="big-kpis">
+        <div><span>Kredit</span><b id="kCredit">$ 0</b></div>
+        <div><span>Rate / Woche</span><b id="kRate">$ 0</b></div>
+        <div><span>Gewinn / Woche</span><b id="kProfit">$ 0</b></div>
+        <div><span>Eigenkapital zurück</span><b id="kBack">–</b></div>
+      </div>
+      <div class="checks" id="checks"></div>
+      <div class="field"><span>Dein Konzept <small>(zum Einreichen im Discord-Ticket)</small></span><div class="concept" id="concept"></div></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-pink" id="copy">Konzept kopieren</button><a class="btn btn-ghost" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Ticket im Discord</a></div>
+    </aside>
+  </div>
+</div></section>
+
+<!-- ============ PFLICHTEN ============ -->
+<section class="f"><div class="wrap">
+  <div class="f-head"><h2><span class="script">Nach der Eröffnung</span>Laufende Pflichten</h2><p>Ein Unternehmen kostet auch dann Geld, wenn mal weniger los ist.</p></div>
+  <div class="duties">
+    <div class="card"><h3>Steuern</h3><p><b id="dTax" style="color:var(--fg)">10 %</b> Gewerbesteuer auf den Wochenumsatz, jeden Sonntag ans Finanzamt. Wer nicht zahlt, bekommt einen Pfändungsbescheid.</p></div>
+    <div class="card"><h3>Aktivität</h3><p>Mindestens <b style="color:var(--fg)">10 Stunden pro Woche geöffnet</b>. Nach zwei inaktiven Wochen kann die Stadt das Gewerbe entziehen.</p></div>
+    <div class="card"><h3>Buchführung</h3><p>Ein- und Ausgaben über das Geschäftskonto. Die Stadt darf jederzeit Einsicht verlangen. Schwarzgeld aufs Firmenkonto ist verboten.</p></div>
+  </div>
+</div></section>
+</main>
+
+<div class="cta-band"><div class="wrap">
+  <h2><span class="script">Bereit?</span>Reich dein Konzept ein.</h2>
+  <a class="btn" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Ticket im Discord öffnen</a>
+</div></div>
+
+<footer class="rls-foot"><div class="rls-in">
+  <span>© 2026 Real Life Southland · Nicht mit Rockstar Games oder Cfx.re verbunden.</span>
+  <nav><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="status.html">Bewerbungsstatus</a><a href="socials.html">Social Media</a><a class="rls-panel" href="admin/">Team-Panel</a></nav>
+</div></footer>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// =====================================================================
+//  PREISE & REGELN – hier kannst du alle Werte für euren Server anpassen
+// =====================================================================
+const CONFIG = {
+  gewerbeschein: 2500,        // Rathaus
+  kontoeroeffnung: 500,       // Bank
+  notarProzent: 1.5,          // beim Gebäudekauf
+  kautionWochen: 2,           // bei Pacht
+  mindestlohn: 800,           // pro Woche
+  steuerProzent: 10,          // Gewerbesteuer auf den Umsatz
+  nebenkosten: 600,           // Strom, Wasser, Versicherung pro Woche
+  gebuehrProzent: 1,          // Kredit-Bearbeitungsgebühr
+  gebuehrMin: 250,
+  mahngebuehr: 500,
+  eigenkapitalProzent: 20,
+  bonitaet: [
+    { id: 'sehrgut', name: 'Sehr gut', wann: 'Saubere Akte, schon mal Kredit pünktlich zurückgezahlt', zins: 5, faktor: 1 },
+    { id: 'gut', name: 'Gut', wann: 'Saubere Akte, fester Job', zins: 8, faktor: 1 },
+    { id: 'mittel', name: 'Mittel', wann: 'Kleine Vergehen oder neu in der Stadt', zins: 12, faktor: 0.75 },
+    { id: 'schwach', name: 'Schwach', wann: 'Vorstrafen oder offene Zahlungen in der Vergangenheit', zins: 18, faktor: 0.5 }
+  ],
+  arten: [
+    { id: 'werkstatt', name: 'Werkstatt & Tuning', farbe: '#ff9a3c', kauf: 85000, pacht: 3500, einrichtung: 25000, ware: 10000, autos: 1, autoPreis: 18000, lizenz: 'Kfz-Meisterbrief', lizenzPreis: 1500, ma: 4, lohn: 1200, umsatz: 22000, maxKredit: 120000 },
+    { id: 'bar', name: 'Bar & Club', farbe: '#b47cff', kauf: 120000, pacht: 5000, einrichtung: 35000, ware: 8000, autos: 1, autoPreis: 8000, lizenz: 'Ausschanklizenz', lizenzPreis: 4000, ma: 6, lohn: 1000, umsatz: 26000, maxKredit: 150000 },
+    { id: 'autohaus', name: 'Autohaus', farbe: '#4f8cff', kauf: 220000, pacht: 8500, einrichtung: 20000, ware: 0, autos: 6, autoPreis: 25000, lizenz: 'Händlerlizenz', lizenzPreis: 6000, ma: 4, lohn: 1400, umsatz: 45000, maxKredit: 300000 },
+    { id: 'taxi', name: 'Taxi-Unternehmen', farbe: '#ffd23f', kauf: 45000, pacht: 2000, einrichtung: 6000, ware: 0, autos: 3, autoPreis: 12000, lizenz: 'Personenbeförderungsschein', lizenzPreis: 2000, ma: 5, lohn: 900, umsatz: 15000, maxKredit: 80000 },
+    { id: 'security', name: 'Security-Firma', farbe: '#4fe0a0', kauf: 70000, pacht: 3000, einrichtung: 15000, ware: 12000, autos: 2, autoPreis: 20000, lizenz: 'Bewachungslizenz + Waffenschein', lizenzPreis: 7500, ma: 6, lohn: 1300, umsatz: 24000, maxKredit: 130000 },
+    { id: 'imbiss', name: 'Imbiss & Restaurant', farbe: '#ff5a6e', kauf: 60000, pacht: 2500, einrichtung: 22000, ware: 5000, autos: 1, autoPreis: 10000, lizenz: 'Gaststättenerlaubnis', lizenzPreis: 2000, ma: 4, lohn: 900, umsatz: 15000, maxKredit: 90000 }
+  ]
+};
+
+// =====================================================================
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const usd = (n) => (n < 0 ? '– ' : '') + '$ ' + Math.round(Math.abs(n)).toLocaleString('de-DE');
+const num = (id) => Math.max(0, parseFloat($(id).value) || 0);
+let tt; const toast = (m) => { const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => (t.hidden = true), 2200); };
+
+// Startkosten einer Art (für Übersicht und Kacheln)
+const startKosten = (a, kauf = true) =>
+  CONFIG.gewerbeschein + CONFIG.kontoeroeffnung + a.lizenzPreis + a.einrichtung + a.ware + a.autos * a.autoPreis
+  + (kauf ? a.kauf * (1 + CONFIG.notarProzent / 100) : a.pacht * CONFIG.kautionWochen)
+  + a.ma * a.lohn * 2;
+
+// ---------- Statische Texte aus CONFIG füllen
+$('tGew').textContent = usd(CONFIG.gewerbeschein);
+$('tKonto').textContent = usd(CONFIG.kontoeroeffnung);
+$('tMin').textContent = usd(CONFIG.mindestlohn);
+$('rFee').textContent = `${CONFIG.gebuehrProzent} %, mindestens ${usd(CONFIG.gebuehrMin)}`;
+$('rMahn').textContent = usd(CONFIG.mahngebuehr);
+$('dTax').textContent = CONFIG.steuerProzent + ' %';
+$('kMin').textContent = usd(Math.min(...CONFIG.arten.map((a) => startKosten(a, false))));
+$('kMax').textContent = usd(Math.max(...CONFIG.arten.map((a) => a.maxKredit)));
+$('bonTable').innerHTML = CONFIG.bonitaet.map((b) => `<tr class="static"><td><b>${b.name}</b></td><td class="muted" style="white-space:normal;min-width:220px">${b.wann}</td><td class="money">${b.zins} %</td><td class="money">${Math.round(b.faktor * 100)} %</td></tr>`).join('');
+
+// ---------- Kacheln der Geschäftsarten
+$('types').innerHTML = CONFIG.arten.map((a) => `
+  <div class="card type" style="--c:${a.farbe}">
+    <h3>${a.name}</h3>
+    <div class="big">${usd(startKosten(a))} <small>Startkosten</small></div>
+    <dl>
+      <dt>Gebäude kaufen</dt><dd>${usd(a.kauf)}</dd>
+      <dt>oder pachten</dt><dd>${usd(a.pacht)} / Woche</dd>
+      <dt>Fahrzeuge</dt><dd>${a.autos} × ${usd(a.autoPreis)}</dd>
+      <dt>Lizenz</dt><dd>${a.lizenz}</dd>
+      <dt>Mitarbeiter</dt><dd>${a.ma} × ${usd(a.lohn)} / Woche</dd>
+      <dt>Max. Kredit</dt><dd>${usd(a.maxKredit)}</dd>
+    </dl>
+    <button class="btn btn-ghost sm" data-plan="${a.id}">Durchrechnen →</button>
+  </div>`).join('');
+
+// ---------- Planer
+const state = { art: CONFIG.arten[0].id, bau: 'kauf', bon: 'gut' };
+$('segType').innerHTML = CONFIG.arten.map((a) => `<button data-v="${a.id}">${a.name}</button>`).join('');
+$('segBon').innerHTML = CONFIG.bonitaet.map((b) => `<button data-v="${b.id}">${b.name} · ${b.zins} %</button>`).join('');
+const art = () => CONFIG.arten.find((a) => a.id === state.art);
+const bon = () => CONFIG.bonitaet.find((b) => b.id === state.bon);
+
+function loadType(id) {
+  state.art = id; const a = art();
+  $('pEquip').value = a.einrichtung; $('pStock').value = a.ware; $('pCars').value = a.autos; $('pCarPrice').value = a.autoPreis;
+  $('pStaff').value = a.ma; $('pWage').value = a.lohn; $('pRev').value = a.umsatz;
+  if (!$('pOwn').dataset.touched) $('pOwn').value = Math.round(startKosten(a, state.bau === 'kauf') * 0.3 / 1000) * 1000;
+  calc();
+}
+function segSync() {
+  document.querySelectorAll('#segType button').forEach((b) => b.classList.toggle('on', b.dataset.v === state.art));
+  document.querySelectorAll('#segBuild button').forEach((b) => b.classList.toggle('on', b.dataset.v === state.bau));
+  document.querySelectorAll('#segBon button').forEach((b) => b.classList.toggle('on', b.dataset.v === state.bon));
+}
+
+function calc() {
+  segSync();
+  const a = art(), b = bon(), kauf = state.bau === 'kauf';
+  const weeks = +$('pWeeks').value; $('oWeeks').textContent = weeks + ' Wochen';
+  const staff = Math.max(1, num('pStaff')), wage = num('pWage');
+  const items = [
+    ['Gewerbeschein (Rathaus)', CONFIG.gewerbeschein, '#7aa8ff'],
+    ['Geschäftskonto (Bank)', CONFIG.kontoeroeffnung, '#7aa8ff'],
+    [a.lizenz, a.lizenzPreis, '#7aa8ff'],
+    kauf ? ['Gebäude kaufen', a.kauf, '#ff4fb3'] : [`Pacht-Kaution (${CONFIG.kautionWochen} Wochen)`, a.pacht * CONFIG.kautionWochen, '#ff4fb3'],
+    ...(kauf ? [[`Notar (${CONFIG.notarProzent} %)`, a.kauf * CONFIG.notarProzent / 100, '#ff4fb3']] : []),
+    ['Einrichtung', num('pEquip'), '#ff7a45'],
+    ['Startware / Ausrüstung', num('pStock'), '#ff7a45'],
+    [`Fahrzeuge (${num('pCars')} ×)`, num('pCars') * num('pCarPrice'), '#ffc04f'],
+    ['Lohnreserve (2 Wochen)', staff * wage * 2, '#4fe0a0']
+  ];
+  const total = items.reduce((s, i) => s + i[1], 0);
+  const own = num('pOwn');
+  const credit = Math.max(0, total - own);
+  const maxCredit = a.maxKredit * b.faktor;
+  const minOwn = total * CONFIG.eigenkapitalProzent / 100;
+  const interest = credit * b.zins / 100;
+  const fee = credit > 0 ? Math.max(CONFIG.gebuehrMin, credit * CONFIG.gebuehrProzent / 100) : 0;
+  const rate = credit > 0 ? (credit + interest + fee) / weeks : 0;
+
+  const rev = num('pRev');
+  const tax = rev * CONFIG.steuerProzent / 100;
+  const running = staff * wage + CONFIG.nebenkosten + (kauf ? 0 : a.pacht) + tax;
+  const profitBefore = rev - running;
+  const profit = profitBefore - rate;
+  const backWeeks = own > 0 && profit > 0 ? Math.ceil(own / profit) : null;
+
+  // Balken
+  const groups = [['Behörden & Lizenzen', '#7aa8ff'], ['Gebäude', '#ff4fb3'], ['Einrichtung & Ware', '#ff7a45'], ['Fahrzeuge', '#ffc04f'], ['Lohnreserve', '#4fe0a0']];
+  const sums = groups.map(([, c]) => items.filter((i) => i[2] === c).reduce((s, i) => s + i[1], 0));
+  $('bar').innerHTML = sums.map((v, i) => `<i style="width:${total ? (v / total * 100).toFixed(2) : 0}%;background:${groups[i][1]}" title="${groups[i][0]}: ${usd(v)}"></i>`).join('');
+  $('legend').innerHTML = groups.map(([n, c], i) => sums[i] ? `<span style="--c:${c}">${n}</span>` : '').join('');
+
+  $('sTitle').textContent = ($('pName').value.trim() || 'Dein Unternehmen') + ' · ' + a.name;
+  $('lines').innerHTML = items.filter((i) => i[1] > 0).map(([n, v]) => `<div><span>${esc(n)}</span><span>${usd(v)}</span></div>`).join('')
+    + `<div class="total"><span>Startkosten gesamt</span><span>${usd(total)}</span></div>`
+    + `<div class="sub"><span>davon Eigenkapital</span><span>${usd(Math.min(own, total))}</span></div>`
+    + `<div class="sub"><span>Kredit inkl. ${b.zins} % Zinsen + Gebühr</span><span>${usd(credit + interest + fee)}</span></div>`
+    + `<div class="sub"><span>Laufende Kosten / Woche (Löhne, ${kauf ? '' : 'Pacht, '}Steuern, Nebenkosten)</span><span>${usd(running)}</span></div>`;
+  $('kCredit').textContent = usd(credit);
+  $('kRate').textContent = usd(rate);
+  $('kProfit').textContent = usd(profit); $('kProfit').style.color = profit >= 0 ? 'var(--ok)' : 'var(--bad)';
+  $('kBack').textContent = own <= 0 ? '–' : backWeeks ? backWeeks + ' Wochen' : 'nie';
+
+  // Prüfung durch die Bank
+  const checks = [];
+  if (own >= minOwn) checks.push(['ok', 'Eigenkapital reicht', `Mindestens ${usd(minOwn)} nötig, du hast ${usd(own)}.`]);
+  else checks.push(['bad', 'Zu wenig Eigenkapital', `Die Bank verlangt ${CONFIG.eigenkapitalProzent} %, also ${usd(minOwn)}. Es fehlen ${usd(minOwn - own)}.`]);
+  if (credit === 0) checks.push(['ok', 'Kein Kredit nötig', 'Du finanzierst alles selbst.']);
+  else if (credit <= maxCredit) checks.push(['ok', 'Kredithöhe passt', `Bei Bonität „${b.name}“ gibt die Bank bis zu ${usd(maxCredit)}.`]);
+  else checks.push(['bad', 'Kredit zu hoch', `Bei Bonität „${b.name}“ gibt die Bank höchstens ${usd(maxCredit)}. ${kauf ? 'Tipp: Gebäude erst pachten.' : 'Tipp: weniger Fahrzeuge oder günstigere Einrichtung.'}`]);
+  if (profit > rate * 0.25) checks.push(['ok', 'Rate ist tragbar', `Nach Rate bleiben dir ${usd(profit)} pro Woche.`]);
+  else if (profit >= 0) checks.push(['warn', 'Knapp kalkuliert', 'Nach der Rate bleibt kaum etwas übrig. Eine schwache Woche und du kommst in Verzug.']);
+  else checks.push(['bad', 'Rate höher als Gewinn', `Dir fehlen ${usd(-profit)} pro Woche. Längere Laufzeit, weniger Personal oder mehr Eigenkapital.`]);
+  if (state.bon === 'schwach') checks.push(['warn', 'Bürge nötig', 'Bei schwacher Bonität verlangt die Bank zusätzlich einen Bürgen.']);
+  if (wage < CONFIG.mindestlohn) checks.push(['bad', 'Unter Mindestlohn', `Der Mindestlohn liegt bei ${usd(CONFIG.mindestlohn)} pro Woche.`]);
+  $('checks').innerHTML = checks.map(([t, h, p]) => `<div class="check-row ${t}"><span class="dot">${t === 'ok' ? '✓' : t === 'warn' ? '!' : '✕'}</span><div><b>${h}</b>${p}</div></div>`).join('');
+
+  const ok = checks.every((c) => c[0] !== 'bad');
+  $('concept').textContent =
+`== Gründungskonzept ==
+Name: ${$('pName').value.trim() || '(Name eintragen)'}
+Art: ${a.name}
+Gebäude: ${kauf ? 'Kauf' : 'Pacht'}
+Mitarbeiter: ${staff} × ${usd(wage)} / Woche
+Fahrzeuge: ${num('pCars')} × ${usd(num('pCarPrice'))}
+Lizenz: ${a.lizenz}
+
+-- Finanzplan --
+Startkosten: ${usd(total)}
+Eigenkapital: ${usd(own)}
+Kredit: ${usd(credit)} (Bonität ${b.name}, ${b.zins} %, ${weeks} Wochen)
+Rate pro Woche: ${usd(rate)}
+Erwarteter Umsatz / Woche: ${usd(rev)}
+Laufende Kosten / Woche: ${usd(running)}
+Gewinn nach Rate / Woche: ${usd(profit)}
+
+Bankprüfung: ${ok ? 'bestanden' : 'noch nicht bestanden'}
+
+-- Geschäftsidee (bitte selbst ausfüllen) --
+Was macht euer Unternehmen besonders?
+Wer sind die Gründer (Charakternamen)?
+Wunsch-Standort:`;
+  try { localStorage.setItem('rls-planer', JSON.stringify({ ...state, f: ['pName', 'pEquip', 'pStock', 'pCars', 'pCarPrice', 'pStaff', 'pWage', 'pOwn', 'pWeeks', 'pRev'].map((k) => $(k).value) })); } catch {}
+}
+
+// ---------- Ereignisse
+$('segType').onclick = (e) => { const b = e.target.closest('button'); if (b) loadType(b.dataset.v); };
+$('segBuild').onclick = (e) => { const b = e.target.closest('button'); if (b) { state.bau = b.dataset.v; calc(); } };
+$('segBon').onclick = (e) => { const b = e.target.closest('button'); if (b) { state.bon = b.dataset.v; calc(); } };
+document.querySelectorAll('.planner input').forEach((i) => i.addEventListener('input', () => { if (i.id === 'pOwn') i.dataset.touched = '1'; calc(); }));
+$('types').onclick = (e) => { const b = e.target.closest('[data-plan]'); if (b) { loadType(b.dataset.plan); $('planer').scrollIntoView({ behavior: 'smooth' }); } };
+$('copy').onclick = () => {
+  const t = $('concept').textContent;
+  const sel = () => { const r = document.createRange(); r.selectNodeContents($('concept')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); toast('Markiert – mit Strg+C kopieren'); };
+  try { navigator.clipboard.writeText(t).then(() => toast('Konzept kopiert. Ab ins Discord-Ticket!'), sel); } catch { sel(); }
+};
+
+// ---------- Start (letzten Stand wiederherstellen, falls vorhanden)
+let saved = null; try { saved = JSON.parse(localStorage.getItem('rls-planer')); } catch {}
+if (saved && CONFIG.arten.some((a) => a.id === saved.art)) {
+  Object.assign(state, { art: saved.art, bau: saved.bau, bon: saved.bon });
+  ['pName', 'pEquip', 'pStock', 'pCars', 'pCarPrice', 'pStaff', 'pWage', 'pOwn', 'pWeeks', 'pRev'].forEach((k, i) => ($(k).value = saved.f[i] ?? ''));
+  $('pOwn').dataset.touched = '1';
+  calc();
+} else loadType(state.art);
+</script>
+<script src="site.js"></script>
+</body>
+</html>
