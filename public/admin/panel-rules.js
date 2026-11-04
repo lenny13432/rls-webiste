@@ -23,6 +23,55 @@ async function importRulesFromPage() {
   return { stand: st ? `${st[3]}-${st[2]}-${st[1]}` : new Date().toISOString().slice(0, 10), intro, chapters, penalties };
 }
 
+// Text einfügen → Kapitel & Regeln anhängen
+// Kapitel: Zeile ohne „§“ und ohne Doppelpunkt (z. B. „4. New Life Regelung“ oder „Crimes/Gangs“)
+// Regel:   „§6.1 Überschrift: Text“ oder „Überschrift: Text“. Regeln vor der ersten Kapitelzeile kommen ins letzte Kapitel.
+function parseRulesText(txt) {
+  const out = []; let cur = null;
+  for (let line of String(txt).split(/\r?\n/)) {
+    line = line.replace(/\s+/g, ' ').trim(); if (!line) continue;
+    const isRule = /^§/.test(line) || /^[^:]{1,90}:\s+\S/.test(line);
+    if (!isRule) { cur = { title: line.replace(/^\d+[.)]\s*/, '').trim().slice(0, 80), rules: [] }; out.push(cur); continue; }
+    line = line.replace(/^§\s*[\d.]+\s*/, '');
+    const k = line.indexOf(':');
+    const rule = k > 0 && k < 120 ? { title: line.slice(0, k).trim(), text: line.slice(k + 1).trim() } : { title: '', text: line };
+    if (!cur) { cur = { title: '', rules: [], toLast: true }; out.push(cur); }
+    cur.rules.push(rule);
+  }
+  return out;
+}
+function mergeRules(D, parsed) {
+  let ch = 0, ru = 0, skip = 0;
+  const norm = (t) => String(t || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  for (const p of parsed) {
+    let target = p.toLast ? D.chapters[D.chapters.length - 1] : D.chapters.find((c) => norm(c.title) === norm(p.title));
+    if (!target) { target = { title: p.title || 'Weitere Regeln', rules: [] }; D.chapters.push(target); ch++; }
+    for (const r of p.rules) {
+      if (target.rules.some((x) => norm(x.title) && norm(x.title) === norm(r.title))) { skip++; continue; }
+      target.rules.push(r); ru++;
+    }
+  }
+  return { ch, ru, skip };
+}
+function openRulesImport() {
+  openDialog(`<form class="form main" style="gap:14px">${dlgHead('Regeln einfügen')}
+    <p class="muted" style="margin:0;font-size:13.5px">Text einfach reinkopieren. Alles wird <b>unter</b> eure bestehenden Regeln gehängt, nichts wird überschrieben.<br>
+      Kapitel = Zeile ohne „:“ (z. B. <code>4. New Life Regelung</code>) · Regel = <code>§6.1 Überschrift: Text</code>. Regeln vor der ersten Kapitelzeile landen im letzten Kapitel. Gleiche Kapitelnamen werden zusammengeführt, doppelte Regeln übersprungen.</p>
+    <label class="field"><span>Text</span><textarea name="txt" id="rwImpTxt" style="min-height:260px;font-family:var(--mono);font-size:13px" placeholder="4. New Life Regelung&#10;§6.1 Verbluten und Gedächtnisverlust: Wer ohne Hilfe verblutet, …"></textarea></label>
+    <p class="muted" id="rwImpPrev" style="margin:0;font-size:13px">Noch nichts eingefügt.</p>
+    <div class="dlg-foot"><span></span><button class="btn btn-pink" type="submit">Anhängen</button></div></form>`,
+  async (fd) => {
+    const parsed = parseRulesText(fd.get('txt'));
+    if (!parsed.length) throw new Error('Keine Regeln erkannt.');
+    const r = mergeRules(RW.data, parsed);
+    RW.open = new Set(RW.data.chapters.map((_, i) => i).slice(-Math.max(1, r.ch)));
+    rwDirty(); renderRulesEditor();
+    toast(`${r.ru} Regeln${r.ch ? ` in ${r.ch} neuen Kapiteln` : ''} angehängt${r.skip ? `, ${r.skip} doppelte übersprungen` : ''}. Prüfen und dann „Veröffentlichen“.`);
+  });
+  const t = $('rwImpTxt');
+  t.oninput = () => { const p = parseRulesText(t.value); const n = p.reduce((a, c) => a + c.rules.length, 0); $('rwImpPrev').innerHTML = n ? `Erkannt: <b>${n} Regeln</b> in ${p.filter((c) => !c.toLast).length} Kapiteln: ${p.map((c) => esc(c.toLast ? '(ins letzte Kapitel)' : c.title)).join(' · ')}` : 'Noch nichts erkannt.'; };
+}
+
 async function showRules() {
   setNav('regelwerk');
   let d; try { d = await api('admin/rules'); } catch (e) { return errBox(e); }
@@ -33,7 +82,7 @@ async function showRules() {
   const owner = me.role === 'owner';
   app.innerHTML = `<div class="wrap admin-main">
     <div class="admin-head"><h1><span class="script">Was gilt auf Southland?</span>Regelwerk</h1>
-      <div class="row"><a class="btn btn-ghost sm" href="../regelwerk.html" target="_blank" rel="noopener">Ansehen ↗</a></div></div>
+      <div class="row">${me.role === 'owner' ? '<button class="btn btn-pink sm" id="rwImport">+ Text einfügen</button>' : ''}<a class="btn btn-ghost sm" href="../regelwerk.html" target="_blank" rel="noopener">Ansehen ↗</a></div></div>
     ${imported ? alertBox('info', 'Das Regelwerk wurde aus der aktuellen Website übernommen. Prüf es kurz und klick einmal auf „Veröffentlichen“. Ab dann kommt alles aus dem Panel, HTML musst du nicht mehr anfassen.') : ''}
     ${d.current ? `<p class="muted" style="margin:-8px 0 16px">Zuletzt veröffentlicht von <b style="color:var(--fg)">${esc(d.current.admin_name || '–')}</b> · ${ago(d.current.created_at)}${d.current.note ? ` · „${esc(d.current.note)}“` : ''}</p>` : ''}
     ${owner ? '' : alertBox('info', 'Du kannst das Regelwerk ansehen. Ändern und veröffentlichen darf der Owner.')}
@@ -53,6 +102,7 @@ async function showRules() {
     const v = await api('admin/rules/versions/' + b.dataset.ver); RW.data = v.data; rwDirty(); renderRulesEditor(); toast('Alte Version geladen. Zum Übernehmen „Veröffentlichen“ klicken.');
   }));
   if (!owner) return;
+  $('rwImport').onclick = openRulesImport;
   $('rwReset').onclick = () => showRules();
   $('rwSave').onclick = async () => {
     $('rwSave').disabled = true;
