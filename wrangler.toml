@@ -22,7 +22,7 @@ database_id = "90e2bf8f-45b1-45bf-9c55-6840de216efe"
 MIN_AGE = "16"
 COOLDOWN_DAYS = "7"
 DELETE_AFTER_DAYS = "90"
-SITE_URL = ""
+SITE_URL = "https://reallifesouthland.de"
 
 [observability]
 enabled = true

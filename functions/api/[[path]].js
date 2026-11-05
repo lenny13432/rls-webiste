@@ -1055,7 +1055,7 @@ async function getPublicLauncher({ env, url }) {
   const s = await getLauncherSettings(db);
   const out = { locked: !!s.locked, releaseDate: s.releaseDate || null, serverCode: s.serverCode, connect: s.connect || null, discord: s.discord };
   if (s.website) out.website = s.website;
-  else out.website = url.origin + '/';
+  else out.website = env.SITE_URL ? env.SITE_URL.replace(/\/$/, '') + '/' : url.origin + '/';
   out.download = { url: s.download.url || null, version: s.download.version || null, size: s.download.size || null, sha256: s.download.sha256 || null };
   out.notice = s.notice.text ? { text: s.notice.text, style: s.notice.style, link: s.notice.link || null } : null;
   if (s.newsSource === 'website') {
