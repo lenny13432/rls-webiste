@@ -1041,6 +1041,7 @@ const LAUNCHER_IMAGES = ['', 'gallery/01-late-night-ride.jpg', 'gallery/02-sunse
 const LAUNCHER_DEFAULT = {
   locked: true, releaseDate: null, serverCode: 'qqabgvz', connect: '', discord: 'https://discord.gg/q9kBzXP9va', website: '',
   notice: { text: '', style: 'info', link: '' }, newsSource: 'launcher', news: [],
+  team: [], changelog: [], gallery: [], rulesSource: 'website', discordAppId: '', banCheck: true,
   download: { url: 'https://www.dropbox.com/scl/fi/jlrknch6vuxjc01t0plbf/Real-Life-Southland-Setup-1.6.0.exe?rlkey=1azaxh4ahkkrcyo0ovikppefw&st=sejctbcj&dl=1', version: '1.6.0', size: '', sha256: '' }, updated_at: null, updated_by: null
 };
 async function getLauncherSettings(db) {
@@ -1066,7 +1067,30 @@ async function getPublicLauncher({ env, url }) {
       ...(i === 0 ? { image: 'gallery/01-late-night-ride.jpg' } : {})
     }));
   } else if (s.news.length) out.news = s.news;
+  if (s.team.length) out.team = s.team;
+  if (s.changelog.length) out.changelog = s.changelog;
+  if (s.gallery.length) out.gallery = s.gallery;
+  if (s.rulesSource === 'website') {
+    const row = await db.prepare('SELECT data FROM rules_versions ORDER BY id DESC LIMIT 1').first().catch(() => null);
+    const rd = row ? parseJson(row.data, null) : null;
+    if (rd && Array.isArray(rd.chapters) && rd.chapters.length) out.rules = rd.chapters.filter((c) => c.rules && c.rules.length).map((c) => ({ title: c.title || 'Regeln', items: c.rules.map((r) => [r.title || '', r.text || '']) }));
+  }
+  if (s.discordAppId) out.discordAppId = s.discordAppId;
+  out.banCheck = s.banCheck !== false;
   return new Response(JSON.stringify(out, null, 2), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' } });
+}
+
+// Launcher fragt mit der Discord-ID nach, ob der Spieler gebannt ist (ID kommt vom lokalen Discord)
+async function launcherBanCheck({ env, url }) {
+  const db = env.DB; await ensureSchema(db);
+  const dc = String(url.searchParams.get('discord') || '').replace(/\D/g, '').slice(0, 22);
+  const head = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'Access-Control-Allow-Origin': '*' };
+  if (dc.length < 15) return new Response(JSON.stringify({ banned: false }), { headers: head });
+  const p = await db.prepare("SELECT id FROM players WHERE discord = ? OR discord = 'discord:' || ? LIMIT 1").bind(dc, dc).first();
+  const s = p ? await db.prepare("SELECT type, reason, expires_at FROM sanctions WHERE player_id = ? AND type IN ('ban','permaban') AND active = 1 AND (expires_at IS NULL OR expires_at > ?) ORDER BY expires_at IS NULL DESC, expires_at DESC LIMIT 1").bind(p.id, now()).first() : null;
+  const set = await getLauncherSettings(db);
+  const out = s ? { banned: true, permanent: s.type === 'permaban' || !s.expires_at, reason: s.reason, until: s.expires_at, discord: set.discord } : { banned: false };
+  return new Response(JSON.stringify(out), { headers: head });
 }
 
 async function getLauncherAdmin({ request, env }) {
@@ -1095,6 +1119,15 @@ async function saveLauncher({ request, env }) {
     connect: str(b.connect, 80), discord: urlOk(b.discord), website: urlOk(b.website),
     notice: { text: str(b.notice?.text, 200), style: pick(b.notice?.style, NOTICE_STYLES, 'info'), link: urlOk(b.notice?.link) },
     newsSource: b.newsSource === 'website' ? 'website' : 'launcher', news,
+    team: (Array.isArray(b.team) ? b.team : []).slice(0, 40).map((m) => { const o = { name: str(m.name, 40), role: str(m.role, 60) }; const a = str(m.avatar, 300); if (a && /^https:\/\/\S+$/.test(a)) o.avatar = a; return o; }).filter((m) => m.name),
+    changelog: (Array.isArray(b.changelog) ? b.changelog : []).slice(0, 40).map((c) => ({
+      version: str(c.version, 30), type: c.type === 'server' ? 'server' : 'launcher', date: str(c.date, 30), title: str(c.title, 120),
+      changes: (Array.isArray(c.changes) ? c.changes : []).slice(0, 30).map((x) => [pick(Array.isArray(x) ? x[0] : '', ['neu', 'fix', 'änderung'], 'neu'), str(Array.isArray(x) ? x[1] : x, 300)]).filter((x) => x[1])
+    })).filter((c) => c.title || c.version),
+    gallery: (Array.isArray(b.gallery) ? b.gallery : []).slice(0, 40).map((g) => ({ file: urlOk(g.file), title: str(g.title, 80), big: !!g.big })).filter((g) => g.file),
+    rulesSource: b.rulesSource === 'launcher' ? 'launcher' : 'website',
+    discordAppId: (() => { const v = str(b.discordAppId, 25).trim(); if (v && !/^\d{15,22}$/.test(v)) throw new HttpError('Die Discord Application ID besteht nur aus Ziffern (17–20 Stellen).'); return v; })(),
+    banCheck: b.banCheck !== false,
     download: {
       url: urlOk(b.download?.url).replace(/([?&])dl=0(&|$)/, '$1dl=1$2'),
       version: str(b.download?.version, 20), size: str(b.download?.size, 20),
@@ -1107,6 +1140,9 @@ async function saveLauncher({ request, env }) {
   if (s.releaseDate !== old.releaseDate) changes.push(s.releaseDate ? 'Release-Datum gesetzt' : 'Release-Datum entfernt');
   if (s.notice.text !== old.notice.text) changes.push(s.notice.text ? 'Hinweis geändert' : 'Hinweis entfernt');
   if (JSON.stringify(s.news) !== JSON.stringify(old.news) || s.newsSource !== old.newsSource) changes.push('News geändert');
+  if (JSON.stringify(s.team) !== JSON.stringify(old.team)) changes.push('Team geändert');
+  if (JSON.stringify(s.changelog) !== JSON.stringify(old.changelog)) changes.push('Changelog geändert');
+  if (JSON.stringify(s.gallery) !== JSON.stringify(old.gallery)) changes.push('Galerie geändert');
   if (s.download.url !== old.download.url || s.download.version !== old.download.version) changes.push(`Download auf Version ${s.download.version || '?'} gesetzt`);
   await db.batch([
     db.prepare("INSERT INTO settings (key, value) VALUES ('launcher', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").bind(JSON.stringify(s)),
@@ -1672,7 +1708,11 @@ async function findOrCreatePlayer(db, t) {
   let p = null;
   if (lic) p = await db.prepare("SELECT * FROM players WHERE license = ? OR license = 'license:' || ? LIMIT 1").bind(lic, lic).first();
   if (!p && dc) p = await db.prepare('SELECT * FROM players WHERE discord = ? LIMIT 1').bind(dc).first();
-  if (p) return p;
+  if (p) {
+    // Discord-ID nachtragen, damit der Launcher Bans erkennt
+    if (dc && /^\d{15,22}$/.test(dc) && !/^\d{15,22}$/.test(String(p.discord || ''))) await db.prepare('UPDATE players SET discord = ? WHERE id = ?').bind(dc, p.id).run();
+    return p;
+  }
   const r = await db.prepare('INSERT INTO players (name, discord, license, notes, watch, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, 0, NULL, ?, ?)')
     .bind(name, dc, lic ? 'license:' + lic : '', 'Automatisch angelegt durch das Ingame-Admin-Menü.', now(), now()).run();
   return { id: r.meta.last_row_id, name };
@@ -2024,6 +2064,7 @@ const ROUTES = [
   ['DELETE', 'admin/snippets/:id', deleteSnippet],
   ['GET', 'admin/stats', getStats],
   ['GET', 'launcher', getPublicLauncher],
+  ['GET', 'launcher/ban', launcherBanCheck],
   ['GET', 'admin/launcher', getLauncherAdmin],
   ['PUT', 'admin/launcher', saveLauncher],
   ['GET', 'admin/pulse', getPulse],

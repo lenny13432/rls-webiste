@@ -692,6 +692,33 @@ async function showLauncher(flash) {
         <div id="laNewsBox"></div>
       </section>
 
+      <section class="card la-card"><h2>Team im Launcher</h2>
+        <p class="muted hint" style="margin-top:0">Die Seite „Team“ im Launcher. Der Erste bekommt die Owner-Krone. Leer = eingebaute Liste.</p>
+        <div id="laTeamBox"></div>
+        <div class="row"><button type="button" class="btn btn-ghost sm" id="laTeamAdd">+ Person</button><button type="button" class="btn btn-ghost sm" id="laTeamImport">Aus Teamliste übernehmen</button></div>
+      </section>
+
+      <section class="card la-card"><h2>Changelog im Launcher</h2>
+        <p class="muted hint" style="margin-top:0">Neueste zuerst. Pro Zeile eine Änderung, vorne <code>neu:</code>, <code>fix:</code> oder <code>änderung:</code>. Leer = eingebauter Changelog.</p>
+        <div id="laClBox"></div><button type="button" class="btn btn-ghost sm" id="laClAdd">+ Eintrag</button>
+      </section>
+
+      <section class="card la-card"><h2>Galerie im Launcher</h2>
+        <p class="muted hint" style="margin-top:0">Bild-Links (https://…), z. B. von Discord oder Imgur. „Groß“ = doppelt so breit. Leer = eingebaute Bilder.</p>
+        <div id="laGalBox"></div><button type="button" class="btn btn-ghost sm" id="laGalAdd">+ Bild</button>
+      </section>
+
+      <section class="card la-card"><h2>Regeln im Launcher</h2>
+        <div class="seg" id="laRules"><button type="button" data-v="website">Regelwerk der Website übernehmen</button><button type="button" data-v="launcher">Eingebaute Kurzfassung</button></div>
+        <p class="muted hint">Mit „Regelwerk der Website“ zeigt der Launcher immer das, was du unter <a href="#regelwerk" style="color:var(--pink)">Regelwerk</a> veröffentlichst.</p>
+      </section>
+
+      <section class="card la-card"><h2>Bann-Sperre im Launcher <small class="tagx">ab Launcher 1.7.0</small></h2>
+        <p class="muted hint" style="margin-top:0">Der Launcher liest die Discord-ID des Spielers aus seinem laufenden Discord. Ist diese ID in einer Spielerakte mit aktivem Ban, sieht der Spieler „Du bist gebannt bis …“ und kann nicht verbinden. Ingame-Bans aus rls_admin tragen die Discord-ID automatisch ein, bei Akten im Panel bitte die <b>Discord-ID (Zahl)</b> eintragen.</p>
+        <div class="seg" id="laBan"><button type="button" data-v="1">✅ An</button><button type="button" data-v="0">Aus</button></div>
+        <label class="field" style="margin-top:12px"><span>Discord Application ID <small>(discord.com/developers → eure App → „Application ID“; auch für den Discord-Status)</small></span><input id="laAppId" maxlength="25" value="${esc(s.discordAppId || '')}" placeholder="z. B. 1301234567890123456" style="font-family:var(--mono)"></label>
+      </section>
+
       <section class="card la-card"><h2>Download auf der Website</h2>
         <p class="muted hint" style="margin-top:0">Neue Launcher-Version gebaut? Link hier tauschen, speichern, fertig. Die Seite <a href="../launcher.html" target="_blank" style="color:var(--pink)">Launcher</a> nutzt sofort den neuen Download. Dropbox-Links mit <code>dl=0</code> werden automatisch zu Direkt-Downloads.</p>
         <label class="field"><span>Download-Link</span><input id="laDl" maxlength="300" value="${esc(s.download.url)}" placeholder="https://www.dropbox.com/…"></label>
@@ -725,6 +752,50 @@ async function showLauncher(flash) {
   seg('laLock', s.locked ? 1 : 0, (v) => { s.locked = v === '1'; });
   const setStyle = seg('laStyle', s.notice.style, (v) => { s.notice.style = v; });
   seg('laSrc', s.newsSource, (v) => { s.newsSource = v; renderLaNews(); });
+  s.team = s.team || []; s.changelog = s.changelog || []; s.gallery = s.gallery || [];
+  seg('laRules', s.rulesSource || 'website', (v) => { s.rulesSource = v; });
+  seg('laBan', s.banCheck === false ? 0 : 1, (v) => { s.banCheck = v === '1'; });
+  // generische Listen-Editoren
+  const listEd = (boxId, arr, row, empty) => {
+    const box = $(boxId);
+    const draw = () => {
+      box.innerHTML = arr.length ? arr.map((it, i) => `<div class="la-n" data-i="${i}"><div class="la-n-head"><b>${i + 1}.</b><span class="row"><button type="button" class="mini" data-up="${i}" ${i === 0 ? 'disabled' : ''}>↑</button><button type="button" class="mini" data-down="${i}" ${i === arr.length - 1 ? 'disabled' : ''}>↓</button><button type="button" class="mini" data-rm="${i}">Entfernen</button></span></div>${row(it)}</div>`).join('') : `<p class="muted" style="margin:0 0 10px">${empty}</p>`;
+      box.querySelectorAll('[data-k]').forEach((el) => (el.oninput = el.onchange = () => {
+        const it = arr[+el.closest('.la-n').dataset.i], k = el.dataset.k;
+        if (el.type === 'checkbox') it[k] = el.checked;
+        else if (k === 'changesText') it.changes = el.value.split('\n').map((l) => l.trim()).filter(Boolean).map((l) => { const m = l.match(/^(neu|fix|änderung|aenderung)\s*:\s*(.+)$/i); return m ? [m[1].toLowerCase().replace('aenderung', 'änderung'), m[2]] : ['neu', l]; });
+        else it[k] = el.value;
+        dirty();
+      }));
+      const mv = (i, j) => { [arr[i], arr[j]] = [arr[j], arr[i]]; draw(); dirty(); };
+      box.querySelectorAll('[data-up]').forEach((b) => (b.onclick = () => mv(+b.dataset.up, +b.dataset.up - 1)));
+      box.querySelectorAll('[data-down]').forEach((b) => (b.onclick = () => mv(+b.dataset.down, +b.dataset.down + 1)));
+      box.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { arr.splice(+b.dataset.rm, 1); draw(); dirty(); }));
+    };
+    draw(); return draw;
+  };
+  const drawTeam = listEd('laTeamBox', s.team, (m) => `<div class="grid3"><label class="field"><span>Name</span><input data-k="name" maxlength="40" value="${esc(m.name)}"></label>
+      <label class="field"><span>Rolle</span><input data-k="role" maxlength="60" value="${esc(m.role)}" placeholder="z. B. Projektleitung"></label>
+      <label class="field"><span>Bild-Link <small>(optional)</small></span><input data-k="avatar" maxlength="300" value="${esc(m.avatar || '')}" placeholder="https://…"></label></div>`, 'Noch niemand eingetragen. Der Launcher zeigt seine eingebaute Team-Liste.');
+  const drawCl = listEd('laClBox', s.changelog, (c) => `<div class="grid3"><label class="field"><span>Version</span><input data-k="version" maxlength="30" value="${esc(c.version)}" placeholder="1.7.0"></label>
+      <label class="field"><span>Bereich</span><select data-k="type">${opts({ launcher: 'Launcher', server: 'Server' }, c.type)}</select></label>
+      <label class="field"><span>Datum</span><input data-k="date" maxlength="30" value="${esc(c.date)}" placeholder="05.11.2026"></label></div>
+      <label class="field"><span>Überschrift</span><input data-k="title" maxlength="120" value="${esc(c.title)}"></label>
+      <label class="field"><span>Änderungen <small>(eine pro Zeile)</small></span><textarea data-k="changesText" style="min-height:80px;font-family:var(--mono);font-size:13px" placeholder="neu: Polizei-Job überarbeitet&#10;fix: Garage speichert Autos wieder">${esc((c.changes || []).map(([k, t]) => k + ': ' + t).join('\n'))}</textarea></label>`, 'Noch kein Eintrag. Der Launcher zeigt seinen eingebauten Changelog.');
+  const drawGal = listEd('laGalBox', s.gallery, (g) => `<div class="grid3" style="grid-template-columns:2fr 1fr auto;align-items:end"><label class="field"><span>Bild-Link</span><input data-k="file" maxlength="300" value="${esc(g.file)}" placeholder="https://…/bild.jpg"></label>
+      <label class="field"><span>Titel</span><input data-k="title" maxlength="80" value="${esc(g.title)}"></label>
+      <label class="chk" style="padding-bottom:10px"><input type="checkbox" data-k="big" ${g.big ? 'checked' : ''}> Groß</label></div>${g.file && /^https:/.test(g.file) ? `<img src="${esc(g.file)}" alt="" class="la-gal-prev" loading="lazy">` : ''}`, 'Noch keine Bilder. Der Launcher zeigt seine eingebauten Screenshots.');
+  $('laTeamAdd').onclick = () => { s.team.push({ name: '', role: '' }); drawTeam(); dirty(); };
+  $('laTeamImport').onclick = async () => {
+    try {
+      const t = await api('admin/teamlist'); const rows = (t.rows || t.team || t).filter((m) => m.active !== 0);
+      const order = (m) => (/inhaber|owner/i.test(m.rank || '') ? 0 : /leitung/i.test(m.rank || '') ? (/stv/i.test(m.rank || '') ? 2 : 1) : 3);
+      s.team.splice(0, s.team.length, ...rows.sort((a, b) => order(a) - order(b)).map((m) => ({ name: m.name, role: m.rank || (m.role === 'owner' ? 'Projektleitung' : 'Team') })));
+      drawTeam(); dirty(); toast(`${s.team.length} Teammitglieder übernommen. Prüfen und speichern.`);
+    } catch (err) { toast(err.message, 'bad'); }
+  };
+  $('laClAdd').onclick = () => { const d = new Date(); s.changelog.unshift({ version: '', type: 'server', date: `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`, title: '', changes: [] }); drawCl(); dirty(); };
+  $('laGalAdd').onclick = () => { s.gallery.push({ file: '', title: '', big: !s.gallery.length }); drawGal(); dirty(); };
   const bind = (id, fn) => { $(id).oninput = () => { fn($(id).value); dirty(); }; };
   bind('laRelease', (v) => { s.releaseDate = v ? new Date(v).toISOString() : null; });
   bind('laNotice', (v) => { s.notice.text = v; });
@@ -733,6 +804,7 @@ async function showLauncher(flash) {
   bind('laConnect', (v) => { s.connect = v.trim(); });
   bind('laDiscord', (v) => { s.discord = v.trim(); });
   bind('laWebsite', (v) => { s.website = v.trim(); });
+  bind('laAppId', (v) => { s.discordAppId = v.trim(); });
   bind('laDl', (v) => { s.download.url = v.trim(); });
   bind('laDlVer', (v) => { s.download.version = v.trim(); });
   bind('laDlSize', (v) => { s.download.size = v.trim(); });
