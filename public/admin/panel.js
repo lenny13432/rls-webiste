@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social-Links (Website)', sm: 'Social Media', events: 'Eventmanagement', frak: 'Fraktionen', tdocs: 'Teamdokumente', projekt: 'Projektplanung', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social-Links (Website)', sm: 'Social Media', events: 'Eventmanagement', frak: 'Fraktionen', tdocs: 'Teamdokumente', projekt: 'Projektplanung', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', teamwarns: 'Teamwarns', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 if (typeof PA !== 'undefined') Object.values(PA).forEach((a) => a.tabs.forEach((t) => { if (t.view !== 'link') TITLES[a.nav + '-' + t.id] = t.label + ' · ' + a.title; }));
 function setNav(view) {
   const logged = !!me;
@@ -85,7 +85,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', server: () => '#server', coords: () => '#server', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen', plan: (id) => (id ? '#plan-' + id : '#start') };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', server: () => '#server', coords: () => '#server', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen', teamwarn: () => '#teamwarns', plan: (id) => (id ? '#plan-' + id : '#start') };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -98,6 +98,7 @@ async function pulse() {
   const b = r.badges || {};
   $('bApps').hidden = !b.apps; $('bApps').textContent = b.apps;
   $('bBugs').hidden = !b.bugs; $('bBugs').textContent = b.bugs;
+  if ($('bTw')) { $('bTw').hidden = !b.tw; $('bTw').textContent = b.tw; }
   if (LIVE.rev && r.rev > LIVE.rev) {
     const others = r.events.filter((e) => e.admin_id !== me.id);
     if (others.length) {
@@ -194,6 +195,7 @@ function route(live) {
     case 'launcher': return showLauncher();
     case 'team': return showTeam();
     case 'teamliste': return showTeamList();
+    case 'teamwarns': return showTeamWarns();
     case 'kalender': return showCalendar();
     case 'abstimmungen': return showPolls();
     case 'vorlagen': return showSnippets();

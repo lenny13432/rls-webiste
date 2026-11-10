@@ -874,3 +874,28 @@ body.is-admin .num{font-family:var(--body);font-variant-numeric:tabular-nums}
 body.is-admin .pf-rows{gap:10px 14px}
 body.is-admin .pf-rows span{display:grid;gap:2px;font-weight:500}
 body.is-admin .pf-rows small{font:500 11.5px var(--body);color:var(--muted)}
+
+/* ===================== Teamwarns ===================== */
+.tw-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;align-items:start}
+.tw-team{display:grid;gap:4px}
+.tw-row{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:12px;width:100%;text-align:left;background:none;border:1px solid transparent;border-radius:12px;padding:8px 10px;color:var(--fg);cursor:pointer;font:inherit}
+.tw-row:hover{background:#ffffff08}.tw-row.on{background:#ff4fb314;border-color:#ff4fb340}
+.tw-n{display:grid;min-width:0}.tw-n small{color:var(--muted);font-size:12.5px}
+.tw-p{font-size:13px;color:var(--muted);white-space:nowrap}.tw-p b{font-size:18px;margin-right:2px}
+.tw-rules{display:grid;gap:8px}.tw-rules div{display:flex;justify-content:space-between;align-items:center;font-size:14px}
+.tw-steps{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:14px}
+.tw-steps div{border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 8%,transparent);border-radius:8px;padding:8px 10px;display:grid;font-size:13px}
+.tw-steps b{color:var(--c);font-size:12.5px}
+.tw-list{display:grid;gap:12px}
+.tw-card{background:var(--night-2);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:14px;padding:16px 18px;display:grid;gap:10px}
+.tw-card.st-abgelaufen,.tw-card.st-aufgehoben{opacity:.7}
+.tw-card header{display:flex;align-items:center;gap:12px}
+.tw-h{flex:1;display:grid;min-width:0}.tw-h small{color:var(--muted);font-size:13px}
+.tw-text{margin:0;font-size:14.5px;line-height:1.55}
+.tw-meta{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12.5px;color:var(--muted)}
+.tw-stmt{background:var(--night);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tw-stmt small{color:var(--muted);font-size:12px;font-weight:600}.tw-stmt p{margin:4px 0 0;font-size:14px}
+.tw-stmt.ok{border-color:#3ddc9744}
+.tw-act{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.tw-act:empty{display:none}
+@media (max-width:900px){.tw-grid{grid-template-columns:1fr}.tw-row{grid-template-columns:auto 1fr auto}.tw-s{display:none}}

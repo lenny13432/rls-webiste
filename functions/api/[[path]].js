@@ -487,7 +487,7 @@ async function getPulse({ request, env, url }) {
     since ? all(db.prepare('SELECT v.id, v.admin_id, v.kind, v.ref_type, v.ref_id, v.text, v.created_at, a.name AS admin_name FROM activity v LEFT JOIN admins a ON a.id = v.admin_id WHERE v.id > ? ORDER BY v.id DESC LIMIT 15').bind(since)) : [],
     all(db.prepare('SELECT a.id, a.name, p.view, p.last_seen FROM presence p JOIN admins a ON a.id = p.admin_id WHERE p.last_seen > ? AND a.active = 1 ORDER BY a.name').bind(isoAgo(75e3)))
   ]);
-  const badges = await db.prepare("SELECT (SELECT COUNT(*) FROM applications WHERE status IN ('offen','pruefung')) AS apps, (SELECT COUNT(*) FROM dev_tasks WHERE category = 'Bug' AND status <> 'fertig') AS bugs").first();
+  const badges = await db.prepare("SELECT (SELECT COUNT(*) FROM applications WHERE status IN ('offen','pruefung')) AS apps, (SELECT COUNT(*) FROM dev_tasks WHERE category = 'Bug' AND status <> 'fertig') AS bugs, (SELECT COUNT(*) FROM team_records WHERE kind = 'verwarnung' AND admin_id = ? AND ack_at IS NULL AND lifted_at IS NULL AND created_at > '2026-11-10') AS tw").bind(me.id).first();
   return json({ rev: rev.r, events, online, badges });
 }
 
@@ -1257,7 +1257,7 @@ async function addTeamRecord({ request, env, params, ctx }) {
   if (len(text) < 3) throw new HttpError('Schreib kurz, worum es geht.');
   await db.batch([
     db.prepare('INSERT INTO team_records (admin_id, kind, text, by_id, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, kind, text, me.id, now()),
-    act(db, me, 'team', 'profile', id, kind === 'lob' ? `hat ${q(t.name)} gelobt 🌟` : `hat in der Teamakte von ${q(t.name)} etwas vermerkt`)
+    act(db, me, 'team', 'profile', id, kind === 'lob' ? `hat ${q(t.name)} gelobt 🌟` : 'hat etwas in einer Teamakte vermerkt')
   ]);
   return json({ ok: true }, 201);
 }
@@ -2063,6 +2063,71 @@ async function deletePlan({ request, env, params }) {
   return json({ ok: true });
 }
 
+
+// ---------------------------------------------------------------- Teamwarns: Verwarnungen fürs Team mit Stufen, Punkten und Ablauf
+// Nutzt team_records (kind = 'verwarnung'), damit alte Einträge aus der Teamakte weiter zählen.
+COLUMN_MIGRATIONS.push(
+  ['team_records', 'level', 'TEXT'], ['team_records', 'points', 'INTEGER'], ['team_records', 'category', 'TEXT'],
+  ['team_records', 'expires_at', 'TEXT'], ['team_records', 'lifted_by', 'INTEGER'], ['team_records', 'lifted_at', 'TEXT'],
+  ['team_records', 'lift_reason', 'TEXT'], ['team_records', 'ack_at', 'TEXT'], ['team_records', 'statement', 'TEXT']
+);
+const TW_LEVELS = { hinweis: 0, verwarnung: 1, schwer: 2, letzte: 3 };
+const TW_LABEL = { hinweis: 'Hinweis', verwarnung: 'Verwarnung', schwer: 'Schwere Verwarnung', letzte: 'Letzte Verwarnung' };
+const TW_CATS = ['Verhalten im Support', 'Inaktivität', 'Rechte-Missbrauch', 'Umgangston', 'Regelverstoß ingame', 'Absprachen nicht eingehalten', 'Datenschutz', 'Sonstiges'];
+const twStatus = (r, n) => (r.lifted_at ? 'aufgehoben' : r.expires_at && r.expires_at < n ? 'abgelaufen' : 'aktiv');
+async function listTeamWarns({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, owner = me.role === 'owner', n = now();
+  const rows = await all(db.prepare(`SELECT r.*, a.name AS admin_name, b.name AS by_name, l.name AS lifted_name FROM team_records r
+      JOIN admins a ON a.id = r.admin_id LEFT JOIN admins b ON b.id = r.by_id LEFT JOIN admins l ON l.id = r.lifted_by
+      WHERE r.kind = 'verwarnung' ${owner ? '' : 'AND r.admin_id = ?'} ORDER BY r.id DESC`).bind(...(owner ? [] : [me.id])));
+  const warns = rows.map((r) => {
+    const level = TW_LEVELS[r.level] !== undefined ? r.level : 'verwarnung';
+    return { id: r.id, admin_id: r.admin_id, admin_name: r.admin_name, by_name: r.by_name, level, label: TW_LABEL[level], points: r.points ?? TW_LEVELS[level], category: r.category || '', text: r.text,
+      created_at: r.created_at, expires_at: r.expires_at, status: twStatus(r, n), lifted_name: r.lifted_name, lifted_at: r.lifted_at, lift_reason: r.lift_reason, ack_at: r.ack_at, statement: r.statement };
+  });
+  const team = owner ? await all(db.prepare('SELECT a.id, a.name, p.rank FROM admins a LEFT JOIN team_profiles p ON p.admin_id = a.id WHERE a.active = 1 ORDER BY a.name')) : [];
+  return json({ owner, me: me.id, warns, team, levels: TW_LABEL, points: TW_LEVELS, categories: TW_CATS });
+}
+async function createTeamWarn({ request, env }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, b = await readBody(request), id = idOrNull(b.admin_id);
+  const t = id && await db.prepare('SELECT name FROM admins WHERE id = ?').bind(id).first();
+  if (!t) throw new HttpError('Wen willst du verwarnen?');
+  if (id === me.id) throw new HttpError('Dich selbst kannst du nicht verwarnen.');
+  const level = pick(b.level, Object.keys(TW_LEVELS), ''), text = str(b.text, 2000), cat = pick(b.category, TW_CATS, 'Sonstiges');
+  if (!level) throw new HttpError('Wähl die Stufe.');
+  if (len(text) < 5) throw new HttpError('Schreib kurz, was passiert ist.');
+  const days = Math.max(0, Math.min(365, parseInt(b.days, 10) || 0));
+  const exp = days ? new Date(Date.now() + days * 864e5).toISOString() : null;
+  const pts = Math.max(0, Math.min(10, Number.isFinite(+b.points) && b.points !== '' && b.points !== null ? Math.round(+b.points) : TW_LEVELS[level]));
+  const r = await db.prepare('INSERT INTO team_records (admin_id, kind, text, by_id, created_at, level, points, category, expires_at) VALUES (?, \'verwarnung\', ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, text, me.id, now(), level, pts, cat, exp).run();
+  await act(db, me, 'team', 'teamwarn', r.meta.last_row_id, 'hat eine Teamwarn eingetragen').run();
+  return json({ ok: true }, 201);
+}
+async function liftTeamWarn({ request, env, params }) {
+  const me = await requireAdmin(request, env, true);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const r = await db.prepare("SELECT r.*, a.name FROM team_records r JOIN admins a ON a.id = r.admin_id WHERE r.id = ? AND r.kind = 'verwarnung'").bind(id).first();
+  if (!r) throw new HttpError('Diese Verwarnung gibt es nicht mehr.', 404);
+  if (r.lifted_at) return json({ ok: true });
+  await db.batch([db.prepare('UPDATE team_records SET lifted_by = ?, lifted_at = ?, lift_reason = ? WHERE id = ?').bind(me.id, now(), str(b.reason, 500), id),
+    act(db, me, 'team', 'teamwarn', id, 'hat eine Teamwarn aufgehoben')]);
+  return json({ ok: true });
+}
+async function ackTeamWarn({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const r = await db.prepare("SELECT * FROM team_records WHERE id = ? AND kind = 'verwarnung'").bind(id).first();
+  if (!r) throw new HttpError('Diese Verwarnung gibt es nicht mehr.', 404);
+  if (r.admin_id !== me.id) throw new HttpError('Nur die verwarnte Person kann das bestätigen.', 403);
+  const st = str(b.statement, 1500);
+  // bewusst ohne Eintrag im Protokoll: Verwarnungen sollen nicht für das ganze Team sichtbar sein
+  await db.prepare('UPDATE team_records SET ack_at = COALESCE(ack_at, ?), statement = ? WHERE id = ?').bind(now(), st || r.statement || null, id).run();
+  return json({ ok: true });
+}
+
 const ROUTES = [
   ['GET', 'config', getConfig],
   ['POST', 'apply', postApply],
@@ -2121,6 +2186,10 @@ const ROUTES = [
   ['PUT', 'admin/teamlist/:id', saveTeamProfile],
   ['POST', 'admin/teamlist/:id/records', addTeamRecord],
   ['DELETE', 'admin/teamrecords/:id', deleteTeamRecord],
+  ['GET', 'admin/teamwarns', listTeamWarns],
+  ['POST', 'admin/teamwarns', createTeamWarn],
+  ['POST', 'admin/teamwarns/:id/lift', liftTeamWarn],
+  ['POST', 'admin/teamwarns/:id/ack', ackTeamWarn],
   ['GET', 'admin/events', listEvents],
   ['POST', 'admin/events', createEvent],
   ['PUT', 'admin/events/:id', updateEvent],
