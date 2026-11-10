@@ -496,15 +496,16 @@ async function getSearch({ request, env, url }) {
   const db = env.DB, term = str(url.searchParams.get('q'), 60).toLowerCase();
   if (term.length < 2) return json({ results: [] });
   const like = `%${term}%`;
-  const [apps, players, tasks, docs, res] = await Promise.all([
+  const [apps, players, tasks, docs, res, plan] = await Promise.all([
     all(db.prepare('SELECT id, discord_name AS title, position AS sub FROM applications WHERE LOWER(discord_name) LIKE ? OR LOWER(code) LIKE ? ORDER BY id DESC LIMIT 5').bind(like, like)),
     all(db.prepare('SELECT id, name AS title, discord AS sub FROM players WHERE LOWER(name) LIKE ? OR LOWER(COALESCE(discord,\'\')) LIKE ? OR LOWER(COALESCE(license,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 5').bind(like, like, like)),
     all(db.prepare('SELECT id, title, status AS sub FROM dev_tasks WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(body,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 6').bind(like, like)),
     all(db.prepare('SELECT id, title, category AS sub FROM dev_docs WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(body,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 5').bind(like, like)),
-    all(db.prepare('SELECT id, name AS title, status AS sub FROM dev_resources WHERE LOWER(name) LIKE ? OR LOWER(COALESCE(notes,\'\')) LIKE ? ORDER BY name LIMIT 5').bind(like, like))
+    all(db.prepare('SELECT id, name AS title, status AS sub FROM dev_resources WHERE LOWER(name) LIKE ? OR LOWER(COALESCE(notes,\'\')) LIKE ? ORDER BY name LIMIT 5').bind(like, like)),
+    all(db.prepare('SELECT id, title, CASE area WHEN \'social\' THEN \'Social Media\' WHEN \'events\' THEN \'Events\' WHEN \'frak\' THEN \'Fraktionen\' WHEN \'docs\' THEN \'Teamdokumente\' ELSE \'Projekt\' END AS sub FROM plan_items WHERE LOWER(title) LIKE ? OR LOWER(COALESCE(data,\'\')) LIKE ? ORDER BY updated_at DESC LIMIT 8').bind(like, like))
   ]);
   const tag = (type, rows) => rows.map((r) => ({ type, ...r }));
-  return json({ results: [...tag('bewerbung', apps), ...tag('spieler', players), ...tag('aufgabe', tasks), ...tag('wiki', docs), ...tag('script', res)] });
+  return json({ results: [...tag('bewerbung', apps), ...tag('spieler', players), ...tag('aufgabe', tasks), ...tag('wiki', docs), ...tag('script', res), ...tag('plan', plan)] });
 }
 
 // ---------------------------------------------------------------- Übersicht & Pinnwand
@@ -1690,6 +1691,7 @@ PANEL_SCHEMA.push(
   `CREATE TABLE IF NOT EXISTS server_reports (id INTEGER PRIMARY KEY AUTOINCREMENT, server_id INTEGER, name TEXT NOT NULL, license TEXT, text TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'offen', claimed_by TEXT, x REAL, y REAL, z REAL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`
 );
 COLUMN_MIGRATIONS.push(['sanctions', 'ingame_admin', 'TEXT']);
+COLUMN_MIGRATIONS.push(['server_reports', 'clip_url', 'TEXT']);
 
 const getSetting = async (db, key) => (await db.prepare('SELECT value FROM settings WHERE key = ?').bind(key).first())?.value ?? null;
 const putSetting = (db, key, value) => db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').bind(key, value);
@@ -1937,7 +1939,8 @@ async function serverReportUpdate({ request, env, params }) {
   const db = env.DB, b = await readBody(request), id = Number(params.id);
   const status = pick(b.status, ['offen', 'angenommen', 'erledigt'], '');
   if (!status) throw new HttpError('Unbekannter Status.');
-  await db.prepare('UPDATE server_reports SET status = ?, claimed_by = COALESCE(?, claimed_by), updated_at = ? WHERE id = ?').bind(status, str(b.admin, 60) || null, now(), id).run();
+  const clip = /^https?:\/\/[^\s"'<>]{4,250}$/.test(String(b.clip || '')) ? String(b.clip) : null;
+  await db.prepare('UPDATE server_reports SET status = ?, claimed_by = COALESCE(?, claimed_by), clip_url = COALESCE(?, clip_url), updated_at = ? WHERE id = ?').bind(status, str(b.admin, 60) || null, clip, now(), id).run();
   return json({ ok: true });
 }
 async function serverReports({ request, env }) {
@@ -1987,6 +1990,79 @@ async function setReportPanel({ request, env, params }) {
 }
 
 // ---------------------------------------------------------------- Router
+
+// ---------------------------------------------------------------- Planung: Social Media, Events, Fraktionen, Teamdokumente, Projekt
+// Ein gemeinsamer Speicher für alle Planungs-Reiter. Feste Felder (Titel, Status, Datum, Zuständig) als Spalten,
+// alles andere als JSON in "data". Welche Bereiche und Reiter es gibt, steht hier – das Panel kennt die Felder.
+PANEL_SCHEMA.push(
+  `CREATE TABLE IF NOT EXISTS plan_items (id INTEGER PRIMARY KEY AUTOINCREMENT, area TEXT NOT NULL, tab TEXT NOT NULL, title TEXT NOT NULL, status TEXT, date TEXT, owner_id INTEGER, data TEXT, sort INTEGER NOT NULL DEFAULT 0, created_by INTEGER, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`,
+  `CREATE INDEX IF NOT EXISTS idx_plan_area ON plan_items(area, tab)`
+);
+const PLAN = {
+  social: { name: 'Social Media', tabs: { posts: 'Beitrag', ideen: 'Idee', kampagnen: 'Kampagne', stats: 'Kennzahl', vorlagen: 'Vorlage' } },
+  events: { name: 'Events', tabs: { events: 'Event', ideen: 'Event-Idee', preise: 'Preis/Sponsor' } },
+  frak: { name: 'Fraktionen', tabs: { fraktionen: 'Fraktion', bewerbungen: 'Fraktionsbewerbung', strikes: 'Verwarnung', aktivitaet: 'Aktivitätsprüfung', gebiete: 'Gebiet' } },
+  docs: { name: 'Teamdokumente', tabs: { dokumente: 'Dokument', protokolle: 'Protokoll', onboarding: 'Einarbeitung', links: 'Link' } },
+  projekt: { name: 'Projektplanung', tabs: { ziele: 'Ziel', finanzen: 'Buchung', partner: 'Partner', feedback: 'Feedback' } }
+};
+const planRow = (r) => ({ ...r, data: parseJson(r.data, {}) });
+function planInput(b, area) {
+  const tab = str(b.tab, 30);
+  if (!PLAN[area] || !PLAN[area].tabs[tab]) throw new HttpError('Unbekannter Bereich.');
+  const title = str(b.title, 160);
+  if (!title) throw new HttpError('Bitte gib einen Titel ein.');
+  const date = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(String(b.date || '')) ? String(b.date) : null;
+  const data = JSON.stringify(b.data && typeof b.data === 'object' && !Array.isArray(b.data) ? b.data : {});
+  if (data.length > 150000) throw new HttpError('Der Eintrag ist zu groß (max. ca. 150.000 Zeichen).');
+  return { tab, title, status: str(b.status, 30) || null, date, owner_id: idOrNull(b.owner_id), data, sort: Number.isFinite(+b.sort) ? Math.round(+b.sort) : 0 };
+}
+async function listPlan({ request, env, url }) {
+  await requireAdmin(request, env);
+  const area = str(url.searchParams.get('area'), 20);
+  if (!PLAN[area]) throw new HttpError('Unbekannter Bereich.');
+  const [items, team] = await Promise.all([
+    all(env.DB.prepare('SELECT p.*, a.name AS owner_name, c.name AS creator_name FROM plan_items p LEFT JOIN admins a ON a.id = p.owner_id LEFT JOIN admins c ON c.id = p.created_by WHERE p.area = ? ORDER BY p.sort, p.id DESC').bind(area)),
+    all(env.DB.prepare('SELECT id, name FROM admins WHERE active = 1 ORDER BY name'))
+  ]);
+  return json({ items: items.map(planRow), team });
+}
+async function getPlanItem({ request, env, params }) {
+  await requireAdmin(request, env);
+  const r = await env.DB.prepare('SELECT id, area, tab, title FROM plan_items WHERE id = ?').bind(Number(params.id)).first();
+  if (!r) throw new HttpError('Diesen Eintrag gibt es nicht mehr.', 404);
+  return json({ item: r });
+}
+async function createPlan({ request, env }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, b = await readBody(request), area = str(b.area, 20), x = planInput(b, area), n = now();
+  const r = await db.prepare('INSERT INTO plan_items (area, tab, title, status, date, owner_id, data, sort, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(area, x.tab, x.title, x.status, x.date, x.owner_id, x.data, x.sort, me.id, n, n).run();
+  const id = r.meta.last_row_id;
+  await act(db, me, 'plan', 'plan', id, `hat ${PLAN[area].tabs[x.tab]} ${q(x.title)} angelegt (${PLAN[area].name})`).run();
+  return json({ ok: true, id }, 201);
+}
+async function updatePlan({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id), b = await readBody(request);
+  const old = await db.prepare('SELECT * FROM plan_items WHERE id = ?').bind(id).first();
+  if (!old) throw new HttpError('Diesen Eintrag gibt es nicht mehr.', 404);
+  const x = planInput({ tab: old.tab, title: old.title, status: old.status, date: old.date, owner_id: old.owner_id, sort: old.sort, data: parseJson(old.data, {}), ...b }, old.area);
+  await db.prepare('UPDATE plan_items SET tab = ?, title = ?, status = ?, date = ?, owner_id = ?, data = ?, sort = ?, updated_at = ? WHERE id = ?')
+    .bind(x.tab, x.title, x.status, x.date, x.owner_id, x.data, x.sort, now(), id).run();
+  const what = b.status !== undefined && b.status !== old.status && Object.keys(b).length <= 2 ? `hat ${q(x.title)} auf „${x.status}“ gesetzt` : `hat ${q(x.title)} bearbeitet`;
+  if (!b.quiet) await act(db, me, 'plan', 'plan', id, `${what} (${PLAN[old.area].name})`).run();
+  return json({ ok: true });
+}
+async function deletePlan({ request, env, params }) {
+  const me = await requireAdmin(request, env);
+  const db = env.DB, id = Number(params.id);
+  const old = await db.prepare('SELECT * FROM plan_items WHERE id = ?').bind(id).first();
+  if (!old) return json({ ok: true });
+  if (old.created_by !== me.id && me.role !== 'owner') throw new HttpError('Löschen darf nur, wer es angelegt hat, oder der Owner.', 403);
+  await db.batch([db.prepare('DELETE FROM plan_items WHERE id = ?').bind(id), act(db, me, 'plan', 'plan', null, `hat ${q(old.title)} gelöscht (${PLAN[old.area].name})`)]);
+  return json({ ok: true });
+}
+
 const ROUTES = [
   ['GET', 'config', getConfig],
   ['POST', 'apply', postApply],
@@ -2105,7 +2181,12 @@ const ROUTES = [
   ['GET', 'admin/dev/docs', listDocs],
   ['POST', 'admin/dev/docs', createDoc],
   ['PUT', 'admin/dev/docs/:id', updateDoc],
-  ['DELETE', 'admin/dev/docs/:id', deleteDoc]
+  ['DELETE', 'admin/dev/docs/:id', deleteDoc],
+  ['GET', 'admin/plan', listPlan],
+  ['POST', 'admin/plan', createPlan],
+  ['GET', 'admin/plan/:id', getPlanItem],
+  ['PUT', 'admin/plan/:id', updatePlan],
+  ['DELETE', 'admin/plan/:id', deletePlan]
 ];
 
 function match(pattern, path) {

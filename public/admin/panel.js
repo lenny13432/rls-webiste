@@ -49,7 +49,8 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social Media', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social-Links (Website)', sm: 'Social Media', events: 'Eventmanagement', frak: 'Fraktionen', tdocs: 'Teamdokumente', projekt: 'Projektplanung', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+if (typeof PA !== 'undefined') Object.values(PA).forEach((a) => a.tabs.forEach((t) => { if (t.view !== 'link') TITLES[a.nav + '-' + t.id] = t.label + ' · ' + a.title; }));
 function setNav(view) {
   const logged = !!me;
   $('sb').hidden = !logged; $('mtop').hidden = !logged;
@@ -59,6 +60,7 @@ function setNav(view) {
     $('navSettings').hidden = me.role !== 'owner';
   }
   document.querySelectorAll('[data-nav]').forEach((a) => a.classList.toggle('on', a.dataset.nav === view));
+  if (window.planNavSync) planNavSync(view);
   $('mTitle').textContent = TITLES[view] || 'Team-Panel';
   document.title = (TITLES[view] ? TITLES[view] + ' · ' : '') + 'Team-Panel – Real Life Southland';
   if (LIVE.view !== view) LIVE.ticks = 0;
@@ -83,7 +85,7 @@ async function rerender() {
   scrollTo(0, y);
 }
 $('liveBtn').onclick = rerender;
-const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', server: () => '#server', coords: () => '#server', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen' };
+const REF_LINK = { application: (id) => '#bewerbung-' + id, player: (id) => '#spieler-' + id, task: (id) => '#aufgabe-' + id, doc: (id) => '#wiki-' + id, news: () => '#news', resource: () => '#scripts', milestone: () => '#roadmap', announcement: () => '#start', admin: () => '#team', settings: () => '#einstellungen', launcher: () => '#launcher', rules: () => '#regelwerk', socials: () => '#social', server: () => '#server', coords: () => '#server', profile: (id) => '#teamliste-' + id, event: (id) => '#termin-' + id, absence: () => '#kalender', poll: () => '#abstimmungen', snippet: () => '#vorlagen', plan: (id) => (id ? '#plan-' + id : '#start') };
 const refLink = (e) => (REF_LINK[e.ref_type] && e.ref_id !== undefined ? REF_LINK[e.ref_type](e.ref_id) : '#protokoll');
 
 async function pulse() {
@@ -179,6 +181,8 @@ function route(live) {
   if ((m = h.match(/^wiki-(\d+)$/))) return showWiki(+m[1]);
   if ((m = h.match(/^aufgabe-(\d+)$/))) return showDev('board', live ? null : +m[1]);
   if ((m = h.match(/^teamliste-(\d+)$/))) return showMember(+m[1]);
+  if ((m = h.match(/^plan-(\d+)$/))) return openPlanItem(+m[1]);
+  if ((m = h.match(/^(sm|events|frak|tdocs|projekt)(?:-(\w+))?$/))) return showPlan(m[1], m[2]);
   if ((m = h.match(/^termin-(\d+)$/))) return showCalendar().then(() => { history.replaceState(null, '', '#kalender'); if (!live) eventDetail(+m[1]); });
   switch (h) {
     case 'liste': return showList();
@@ -292,7 +296,7 @@ async function showStart() {
   app.querySelectorAll('[data-pin]').forEach((b) => (b.onclick = async () => { await api('admin/announcements/' + b.dataset.pin, { method: 'PUT', body: { pinned: b.dataset.v === '1' } }); showStart(); }));
   app.querySelectorAll('[data-unpin]').forEach((b) => (b.onclick = async () => { if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Löschen?'; b.classList.add('arm'); return; } await api('admin/announcements/' + b.dataset.unpin, { method: 'DELETE' }); showStart(); }));
 }
-const KIND_ICON = { server: '🎮', bewerbung: '📝', spieler: '🛡️', news: '📰', dev: '🛠️', pinnwand: '📌', team: '👥' };
+const KIND_ICON = { server: '🎮', bewerbung: '📝', spieler: '🛡️', news: '📰', dev: '🛠️', pinnwand: '📌', team: '👥', plan: '🗂️' };
 const feedItem = (e) => `<li><a href="${refLink(e)}"><span class="fi">${KIND_ICON[e.kind] || '•'}</span><span><b>${esc(e.admin_name || 'Website')}</b> ${esc(e.text)}<small>${ago(e.created_at)}</small></span></a></li>`;
 
 // ============================================================ Bewerbungen
@@ -873,8 +877,8 @@ const QUICK = () => [
   ['News schreiben', '📰', () => { location.hash = '#news'; setTimeout(() => $('addNews')?.click(), 350); }],
   ...Object.entries(TITLES).filter(([k]) => k !== 'einstellungen' || me?.role === 'owner').map(([k, t]) => [t, '→', () => { location.hash = '#' + k; }])
 ];
-const SR_LABEL = { bewerbung: 'Bewerbung', spieler: 'Spieler', aufgabe: 'Aufgabe', wiki: 'Wiki', script: 'Script' };
-const SR_LINK = { bewerbung: (r) => '#bewerbung-' + r.id, spieler: (r) => '#spieler-' + r.id, aufgabe: (r) => '#aufgabe-' + r.id, wiki: (r) => '#wiki-' + r.id, script: () => '#scripts' };
+const SR_LABEL = { bewerbung: 'Bewerbung', spieler: 'Spieler', aufgabe: 'Aufgabe', wiki: 'Wiki', script: 'Script', plan: 'Planung' };
+const SR_LINK = { bewerbung: (r) => '#bewerbung-' + r.id, spieler: (r) => '#spieler-' + r.id, aufgabe: (r) => '#aufgabe-' + r.id, wiki: (r) => '#wiki-' + r.id, script: () => '#scripts', plan: (r) => '#plan-' + r.id };
 function openCmdk() {
   if (!me || document.querySelector('dialog.cmdk')) return;
   const dlg = openDialog(`<input id="ckq" placeholder="Suchen: Spieler, Aufgaben, Bewerbungen, Wiki… oder Aktion" autocomplete="off"><ul id="ckr" class="ck-list"></ul><p class="ck-hint">↑↓ auswählen · Enter öffnen · Esc schließen</p>`, null, null, {});
@@ -893,7 +897,7 @@ function openCmdk() {
     try {
       const r = await api('admin/search?q=' + encodeURIComponent(term));
       if ($('ckq')?.value.trim() !== term) return;
-      items = [...r.results.map((x) => ({ title: x.title, sub: x.sub, tag: SR_LABEL[x.type], icon: { bewerbung: '📝', spieler: '🛡️', aufgabe: '🛠️', wiki: '📖', script: '⌘' }[x.type], href: SR_LINK[x.type](x) })), ...quick(term)];
+      items = [...r.results.map((x) => ({ title: x.title, sub: x.sub, tag: SR_LABEL[x.type], icon: { bewerbung: '📝', spieler: '🛡️', aufgabe: '🛠️', wiki: '📖', script: '⌘', plan: '🗂️' }[x.type], href: SR_LINK[x.type](x) })), ...quick(term)];
       draw();
     } catch {}
   };
