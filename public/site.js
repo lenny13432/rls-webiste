@@ -45,3 +45,19 @@ window.RLS_SOCIAL = {
     foot.appendChild(box);
   }).catch(function () {});
 })();
+
+// Besucher-Statistik fürs Team-Panel: anonym, ohne Cookies, ohne IP.
+// Jeder Browser bekommt eine zufällige Nummer, damit eine Person nur einmal zählt.
+(function () {
+  try {
+    if (/^\/admin/.test(location.pathname) || navigator.doNotTrack === '1' || !navigator.sendBeacon) return;
+    var v = null;
+    try { v = localStorage.getItem('rls_vid'); if (!v || !/^[a-f0-9]{32}$/.test(v)) { var a = new Uint8Array(16); crypto.getRandomValues(a); v = Array.from(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join(''); localStorage.setItem('rls_vid', v); } } catch (e) { return; }
+    var send = function (o) { o.v = v; navigator.sendBeacon('/api/track', new Blob([JSON.stringify(o)], { type: 'application/json' })); };
+    send({ t: 'pv', p: location.pathname, r: document.referrer || '', w: screen.width });
+    document.addEventListener('click', function (e) {
+      var d = e.target.closest && e.target.closest('[data-dl]');
+      if (d && d.getAttribute('href') && d.getAttribute('href') !== '#') send({ t: 'dl' });
+    }, true);
+  } catch (e) {}
+})();

@@ -899,3 +899,24 @@ body.is-admin .pf-rows small{font:500 11.5px var(--body);color:var(--muted)}
 .tw-act{display:flex;gap:8px;justify-content:flex-end;align-items:center}
 .tw-act:empty{display:none}
 @media (max-width:900px){.tw-grid{grid-template-columns:1fr}.tw-row{grid-template-columns:auto 1fr auto}.tw-s{display:none}}
+
+/* ===================== Besucher & Downloads ===================== */
+.ws-charts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:6px}
+.ws-chart{display:grid;grid-template-columns:auto 1fr;gap:10px;height:200px}
+.ws-y{display:flex;flex-direction:column;justify-content:space-between;font:500 11.5px var(--body);color:var(--muted);text-align:right;margin:-6px 0}
+.ws-bars{position:relative;height:100%;border-bottom:1px solid #ffffff22}
+.ws-grid{position:absolute;left:0;right:0;border-top:1px dashed #ffffff10}
+.ws-b{position:absolute;bottom:0;top:0;display:flex;align-items:flex-end;justify-content:center;cursor:default}
+.ws-b span{display:block;width:calc(100% - 2px);max-width:22px;min-height:0;background:var(--c);border-radius:4px 4px 0 0;opacity:.85;transition:opacity .15s}
+.ws-b.on span{opacity:1;box-shadow:0 0 0 2px var(--night-2),0 0 14px var(--c)}
+.ws-b.on{background:#ffffff08}
+.ws-x{display:flex;justify-content:space-between;margin:6px 0 0 34px;font:500 11.5px var(--body);color:var(--muted)}
+.ws-tip{position:absolute;top:6px;transform:translateX(-50%);background:var(--night-3);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12.5px;white-space:nowrap;pointer-events:none;box-shadow:0 8px 24px #0008;z-index:2}
+.ws-lists{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:16px}
+.ws-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:6px 0}
+.ws-k{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ws-v{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ws-track{grid-column:1/-1;height:6px;border-radius:99px;background:#ffffff0c;overflow:hidden}
+.ws-track i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--pink))}
+.admin-head .seg{flex:none}
+@media (max-width:900px){.ws-charts{grid-template-columns:1fr}}

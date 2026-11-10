@@ -49,7 +49,7 @@ async function api(path, opts = {}) {
 }
 
 // ============================================================ Seitenleiste & Navigation
-const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social-Links (Website)', sm: 'Social Media', events: 'Eventmanagement', frak: 'Fraktionen', tdocs: 'Teamdokumente', projekt: 'Projektplanung', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', teamwarns: 'Teamwarns', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
+const TITLES = { start: 'Übersicht', liste: 'Bewerbungen', spieler: 'Spielerakten', news: 'Website-News', regelwerk: 'Regelwerk', social: 'Social-Links (Website)', sm: 'Social Media', events: 'Eventmanagement', frak: 'Fraktionen', tdocs: 'Teamdokumente', projekt: 'Projektplanung', server: 'Server Live', launcher: 'Launcher', team: 'Konten & Rechte', teamliste: 'Teamliste', teamwarns: 'Teamwarns', besucher: 'Besucher & Downloads', kalender: 'Kalender', abstimmungen: 'Abstimmungen', vorlagen: 'Textbausteine', statistik: 'Statistik', protokoll: 'Protokoll', einstellungen: 'Einstellungen', konto: 'Mein Konto', dev: 'To-do-Board', roadmap: 'Roadmap', bugs: 'Bugs', scripts: 'Scripts', wiki: 'Wiki' };
 if (typeof PA !== 'undefined') Object.values(PA).forEach((a) => a.tabs.forEach((t) => { if (t.view !== 'link') TITLES[a.nav + '-' + t.id] = t.label + ' · ' + a.title; }));
 function setNav(view) {
   const logged = !!me;
@@ -196,6 +196,7 @@ function route(live) {
     case 'team': return showTeam();
     case 'teamliste': return showTeamList();
     case 'teamwarns': return showTeamWarns();
+    case 'besucher': return showWebStats();
     case 'kalender': return showCalendar();
     case 'abstimmungen': return showPolls();
     case 'vorlagen': return showSnippets();
@@ -725,6 +726,11 @@ async function showLauncher(flash) {
         <label class="field" style="margin-top:12px"><span>Discord Application ID <small>(discord.com/developers → eure App → „Application ID“; auch für den Discord-Status)</small></span><input id="laAppId" maxlength="25" value="${esc(s.discordAppId || '')}" placeholder="z. B. 1301234567890123456" style="font-family:var(--mono)"></label>
       </section>
 
+      <section class="card la-card"><h2>Tipps im Ladebildschirm <small class="tagx">Launcher 1.8 &amp; rls_loadscreen</small></h2>
+        <p class="muted hint" style="margin-top:0">Erscheinen nacheinander im Ladebildschirm des Launchers und ingame beim Verbinden. Ein Tipp pro Zeile. Leer = Standard-Tipps.</p>
+        <textarea id="laTips" class="ta" maxlength="5000" style="min-height:140px" placeholder="Mit /report meldest du Regelverstöße direkt ans Team.&#10;Am Flughafen wartet dein erster Job.">${esc((s.tips || []).join('\n'))}</textarea>
+      </section>
+
       <section class="card la-card"><h2>Download auf der Website</h2>
         <p class="muted hint" style="margin-top:0">Neue Launcher-Version gebaut? Link hier tauschen, speichern, fertig. Die Seite <a href="../launcher.html" target="_blank" style="color:var(--pink)">Launcher</a> nutzt sofort den neuen Download. Dropbox-Links mit <code>dl=0</code> werden automatisch zu Direkt-Downloads.</p>
         <label class="field"><span>Download-Link</span><input id="laDl" maxlength="300" value="${esc(s.download.url)}" placeholder="https://www.dropbox.com/…"></label>
@@ -811,6 +817,7 @@ async function showLauncher(flash) {
   bind('laDiscord', (v) => { s.discord = v.trim(); });
   bind('laWebsite', (v) => { s.website = v.trim(); });
   bind('laAppId', (v) => { s.discordAppId = v.trim(); });
+  bind('laTips', (v) => { s.tips = v.split('\n').map((t) => t.trim()).filter(Boolean); });
   bind('laDl', (v) => { s.download.url = v.trim(); });
   bind('laDlVer', (v) => { s.download.version = v.trim(); });
   bind('laDlSize', (v) => { s.download.size = v.trim(); });

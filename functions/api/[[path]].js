@@ -711,7 +711,7 @@ const NEWS_TAGS = ['Ankündigung', 'Update', 'Event', 'Team', 'Changelog', 'Rele
 async function getPublicNews({ env }) {
   await ensureSchema(env.DB);
   const rows = await all(env.DB.prepare('SELECT id, title, body, tag, pinned, created_at FROM news WHERE published = 1 ORDER BY pinned DESC, id DESC LIMIT 4'));
-  return new Response(JSON.stringify({ rows }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=30' } });
+  return new Response(JSON.stringify({ rows }), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=30', 'Access-Control-Allow-Origin': '*' } });
 }
 async function listNews({ request, env }) {
   await requireAdmin(request, env);
@@ -1078,6 +1078,7 @@ async function getPublicLauncher({ env, url }) {
   }
   if (s.discordAppId) out.discordAppId = s.discordAppId;
   out.banCheck = s.banCheck !== false;
+  if (Array.isArray(s.tips) && s.tips.length) out.tips = s.tips;
   return new Response(JSON.stringify(out, null, 2), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', 'Access-Control-Allow-Origin': '*' } });
 }
 
@@ -1129,6 +1130,7 @@ async function saveLauncher({ request, env }) {
     rulesSource: b.rulesSource === 'launcher' ? 'launcher' : 'website',
     discordAppId: (() => { const v = str(b.discordAppId, 25).trim(); if (v && !/^\d{15,22}$/.test(v)) throw new HttpError('Die Discord Application ID besteht nur aus Ziffern (17–20 Stellen).'); return v; })(),
     banCheck: b.banCheck !== false,
+    tips: (Array.isArray(b.tips) ? b.tips : String(b.tips || '').split('\n')).map((t) => str(t, 160)).filter(Boolean).slice(0, 30),
     download: {
       url: urlOk(b.download?.url).replace(/([?&])dl=0(&|$)/, '$1dl=1$2'),
       version: str(b.download?.version, 20), size: str(b.download?.size, 20),
@@ -2128,6 +2130,109 @@ async function ackTeamWarn({ request, env, params }) {
   return json({ ok: true });
 }
 
+
+// ---------------------------------------------------------------- Besucher- & Launcher-Statistik
+// Jede Person zählt nur einmal: Die Website gibt jedem Browser eine zufällige Besucher-Nummer (localStorage),
+// der Launcher jedem PC eine zufällige Installations-Nummer. Gespeichert wird davon nur ein Hash.
+// Keine IP-Adressen, keine Namen, keine Cookies.
+PANEL_SCHEMA.push(
+  `CREATE TABLE IF NOT EXISTS stats_visitors (id TEXT PRIMARY KEY, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, visits INTEGER NOT NULL DEFAULT 0, pages INTEGER NOT NULL DEFAULT 0, ref TEXT, country TEXT, device TEXT, first_page TEXT, downloaded TEXT)`,
+  `CREATE TABLE IF NOT EXISTS stats_seen (day TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, PRIMARY KEY (day, kind, id))`,
+  `CREATE TABLE IF NOT EXISTS stats_pages (day TEXT NOT NULL, path TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, people INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, path))`,
+  `CREATE TABLE IF NOT EXISTS launcher_installs (id TEXT PRIMARY KEY, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, version TEXT, opens INTEGER NOT NULL DEFAULT 0, plays INTEGER NOT NULL DEFAULT 0, last_play TEXT)`
+);
+const BOT_RE = /bot|crawl|spider|slurp|preview|facebookexternalhit|discordbot|headless|curl|wget|python|scrapy|monitor|lighthouse/i;
+const trackOk = () => new Response(null, { status: 204, headers: { 'Access-Control-Allow-Origin': '*' } });
+async function idHash(env, raw) { return (await sha256('rls-stats|' + (env.SETUP_KEY || '') + '|' + raw)).slice(0, 32); }
+
+async function postTrack({ request, env, url }) {
+  const ua = request.headers.get('User-Agent') || '';
+  if (BOT_RE.test(ua)) return trackOk();
+  const b = await readBody(request).catch(() => ({}));
+  const raw = String(b.v || '');
+  if (!/^[a-f0-9]{24,40}$/.test(raw)) return trackOk();
+  const db = env.DB; await ensureSchema(db);
+  const id = await idHash(env, raw), n = now(), day = n.slice(0, 10);
+  const one = (sql, ...a) => db.prepare(sql).bind(...a);
+  if (b.t === 'dl') {
+    await db.batch([one('UPDATE stats_visitors SET downloaded = COALESCE(downloaded, ?), last_seen = ? WHERE id = ?', n, n, id), one('INSERT OR IGNORE INTO stats_seen (day, kind, id) VALUES (?, ?, ?)', day, 'dl', id)]);
+    return trackOk();
+  }
+  if (b.t !== 'pv') return trackOk();
+  let path = String(b.p || '/').split('?')[0].split('#')[0].slice(0, 60);
+  if (path === '/' || path === '') path = '/index.html';
+  if (!/\.html$/.test(path)) path = path.replace(/\/$/, '') + '.html';
+  if (!/^\/[a-z0-9\-_.\/]*$/i.test(path) || /^\/admin/.test(path)) return trackOk();
+  let ref = '';
+  try { const r = new URL(String(b.r || '')); if (r.host !== url.host) ref = r.host.replace(/^www\./, '').slice(0, 60); } catch {}
+  const w = +b.w || 0, device = w && w < 768 ? 'Handy' : w && w < 1100 ? 'Tablet' : 'PC';
+  const country = String((request.cf && request.cf.country) || request.headers.get('CF-IPCountry') || '').slice(0, 2).toUpperCase();
+  // Neue Person? Neuer Tag für diese Person? Neue Seite für diese Person an diesem Tag?
+  const [ins, dayNew, pageNew] = await db.batch([
+    one('INSERT OR IGNORE INTO stats_visitors (id, first_seen, last_seen, visits, pages, ref, country, device, first_page) VALUES (?, ?, ?, 0, 0, ?, ?, ?, ?)', id, n, n, ref || null, country || null, device, path),
+    one('INSERT OR IGNORE INTO stats_seen (day, kind, id) VALUES (?, ?, ?)', day, 'v', id),
+    one('INSERT OR IGNORE INTO stats_seen (day, kind, id) VALUES (?, ?, ?)', day, 'p:' + path, id)
+  ]);
+  const ch = (r) => (r && (r.meta ? r.meta.changes : r.changes)) || 0;
+  await db.batch([
+    one('UPDATE stats_visitors SET last_seen = ?, pages = pages + 1, visits = visits + ? WHERE id = ?', n, ch(dayNew) ? 1 : 0, id),
+    one('INSERT INTO stats_pages (day, path, views, people) VALUES (?, ?, 1, ?) ON CONFLICT(day, path) DO UPDATE SET views = views + 1, people = people + excluded.people', day, path, ch(pageNew) ? 1 : 0)
+  ]);
+  void ins;
+  if (Math.random() < 0.02) await db.prepare("DELETE FROM stats_seen WHERE day < ? AND kind LIKE 'p:%'").bind(isoAgo(3 * 864e5).slice(0, 10)).run();
+  return trackOk();
+}
+
+async function postTrackLauncher({ request, env }) {
+  const b = await readBody(request).catch(() => ({}));
+  const raw = String(b.id || '');
+  if (!/^[a-f0-9]{32}$/.test(raw)) return trackOk();
+  const db = env.DB; await ensureSchema(db);
+  const id = await idHash(env, 'launcher|' + raw), n = now(), day = n.slice(0, 10), v = str(b.version, 20) || null, play = b.e === 'play';
+  await db.batch([
+    db.prepare('INSERT INTO launcher_installs (id, first_seen, last_seen, version, opens, plays, last_play) VALUES (?, ?, ?, ?, 0, 0, NULL) ON CONFLICT(id) DO UPDATE SET last_seen = excluded.last_seen, version = COALESCE(excluded.version, version)').bind(id, n, n, v),
+    db.prepare(play ? 'UPDATE launcher_installs SET plays = plays + 1, last_play = ? WHERE id = ?' : 'UPDATE launcher_installs SET opens = opens + 1, last_seen = ? WHERE id = ?').bind(n, id),
+    db.prepare('INSERT OR IGNORE INTO stats_seen (day, kind, id) VALUES (?, ?, ?)').bind(day, play ? 'lp' : 'lo', id)
+  ]);
+  return trackOk();
+}
+
+async function getWebStats({ request, env, url }) {
+  await requireAdmin(request, env);
+  const db = env.DB, days = Math.max(7, Math.min(365, parseInt(url.searchParams.get('days'), 10) || 30));
+  const from = isoAgo((days - 1) * 864e5).slice(0, 10), fromIso = from + 'T00:00:00';
+  const one = (sql, ...a) => db.prepare(sql).bind(...a).first();
+  const perDay = (kind) => all(db.prepare('SELECT day, COUNT(*) AS n FROM stats_seen WHERE kind = ? AND day >= ? GROUP BY day').bind(kind, from));
+  const [people, newPeople, pv, dlAll, dlRange, v, lo, lp, li, top, refs, countries, devices, inst, inst7, inst30, versions, plays, todayV] = await Promise.all([
+    one('SELECT COUNT(*) AS n FROM stats_visitors'),
+    one('SELECT COUNT(*) AS n FROM stats_visitors WHERE first_seen >= ?', fromIso),
+    one('SELECT COALESCE(SUM(views), 0) AS n FROM stats_pages WHERE day >= ?', from),
+    one('SELECT COUNT(*) AS n FROM stats_visitors WHERE downloaded IS NOT NULL'),
+    one('SELECT COUNT(*) AS n FROM stats_visitors WHERE downloaded >= ?', fromIso),
+    perDay('v'), perDay('lo'), perDay('lp'),
+    all(db.prepare('SELECT substr(first_seen, 1, 10) AS day, COUNT(*) AS n FROM launcher_installs WHERE first_seen >= ? GROUP BY day').bind(fromIso)),
+    all(db.prepare('SELECT path, SUM(views) AS views, SUM(people) AS people FROM stats_pages WHERE day >= ? GROUP BY path ORDER BY people DESC, views DESC LIMIT 10').bind(from)),
+    all(db.prepare("SELECT COALESCE(ref, '') AS k, COUNT(*) AS n FROM stats_visitors WHERE first_seen >= ? GROUP BY k ORDER BY n DESC LIMIT 8").bind(fromIso)),
+    all(db.prepare("SELECT COALESCE(country, '') AS k, COUNT(*) AS n FROM stats_visitors WHERE last_seen >= ? GROUP BY k ORDER BY n DESC LIMIT 8").bind(fromIso)),
+    all(db.prepare("SELECT COALESCE(device, 'PC') AS k, COUNT(*) AS n FROM stats_visitors WHERE last_seen >= ? GROUP BY k ORDER BY n DESC").bind(fromIso)),
+    one('SELECT COUNT(*) AS n FROM launcher_installs'),
+    one('SELECT COUNT(*) AS n FROM launcher_installs WHERE last_seen >= ?', isoAgo(7 * 864e5)),
+    one('SELECT COUNT(*) AS n FROM launcher_installs WHERE last_seen >= ?', isoAgo(30 * 864e5)),
+    all(db.prepare("SELECT COALESCE(version, '?') AS k, COUNT(*) AS n FROM launcher_installs WHERE last_seen >= ? GROUP BY k ORDER BY n DESC LIMIT 8").bind(isoAgo(30 * 864e5))),
+    one('SELECT COUNT(*) AS n FROM launcher_installs WHERE plays > 0'),
+    one("SELECT COUNT(*) AS n FROM stats_seen WHERE kind = 'v' AND day = ?", now().slice(0, 10))
+  ]);
+  const series = [];
+  const map = (rows) => Object.fromEntries(rows.map((r) => [r.day, r.n]));
+  const mv = map(v), mlo = map(lo), mlp = map(lp), mli = map(li);
+  for (let i = days - 1; i >= 0; i--) { const d = isoAgo(i * 864e5).slice(0, 10); series.push({ day: d, visitors: mv[d] || 0, launcher: mlo[d] || 0, plays: mlp[d] || 0, installs: mli[d] || 0 }); }
+  return json({
+    days, series,
+    web: { people: people.n, newPeople: newPeople.n, today: todayV.n, views: pv.n, downloads: dlAll.n, downloadsRange: dlRange.n, top, refs, countries, devices },
+    launcher: { installs: inst.n, active7: inst7.n, active30: inst30.n, played: plays.n, versions }
+  });
+}
+
 const ROUTES = [
   ['GET', 'config', getConfig],
   ['POST', 'apply', postApply],
@@ -2187,6 +2292,9 @@ const ROUTES = [
   ['POST', 'admin/teamlist/:id/records', addTeamRecord],
   ['DELETE', 'admin/teamrecords/:id', deleteTeamRecord],
   ['GET', 'admin/teamwarns', listTeamWarns],
+  ['POST', 'track', postTrack],
+  ['POST', 'track/launcher', postTrackLauncher],
+  ['GET', 'admin/webstats', getWebStats],
   ['POST', 'admin/teamwarns', createTeamWarn],
   ['POST', 'admin/teamwarns/:id/lift', liftTeamWarn],
   ['POST', 'admin/teamwarns/:id/ack', ackTeamWarn],
