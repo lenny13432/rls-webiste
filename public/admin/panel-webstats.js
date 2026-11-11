@@ -39,7 +39,7 @@ async function showWebStats() {
       ${wsList('Geräte', w.devices.map((r) => [r.k, r.n]))}
       ${wsList('Launcher-Versionen', l.versions.map((r) => [r.k === '?' ? 'Unbekannt' : 'Version ' + r.k, r.n]), 'Aktiv letzte 30 Tage')}
     </div>
-    <p class="muted" style="font-size:13px;margin-top:18px">So wird gezählt: Die Website gibt jedem Browser eine zufällige Nummer (ohne Cookie, ohne IP-Adresse), der Launcher jedem PC. Wer mit „Do Not Track“ surft, wird nicht gezählt. Bitte erwähnt die anonyme Statistik in eurer Datenschutzerklärung.</p>
+    <p class="muted" style="font-size:13px;margin-top:18px">lENNY DER GEILGE DADDY TRAING PANEL</p>
   </div>`;
   $('wsDays').onclick = (e) => { const b = e.target.closest('[data-d]'); if (b) { WS.days = +b.dataset.d; showWebStats(); } };
   app.querySelectorAll('.ws-bars').forEach(bindBarTips);
