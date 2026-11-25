@@ -14,7 +14,7 @@
 <div class="rls-nav" role="navigation"><div class="rls-in">
   <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
   <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
-  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <a class="rls-dc" href="https://discord.com/invite/unwptRNTbR" target="_blank" rel="noopener">Discord</a>
   <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div></div>
 
@@ -60,7 +60,7 @@ async function check() {
     $('out').innerHTML = `<div class="status-big"><div class="ic st-${a.status}">${ic}</div><span class="pill st-${a.status}">${LABEL[a.status]}</span><h2>${title}</h2>
       <p class="muted">Bewerbung als <b style="color:var(--fg)">${esc(a.position)}</b> vom ${fmt(a.created_at)}</p><p>${text}</p></div>
       ${a.public_note ? `<div class="alert info"><p><b>Nachricht vom Team:</b></p><p>${esc(a.public_note).replace(/\n/g, '<br>')}</p></div>` : ''}
-      ${a.status === 'angenommen' ? '<a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Zum Discord</a>' : a.status === 'abgelehnt' ? '<a class="btn btn-ghost" href="bewerbung.html">Neue Bewerbung</a>' : ''}`;
+      ${a.status === 'angenommen' ? '<a class="btn btn-pink" href="https://discord.com/invite/unwptRNTbR" target="_blank" rel="noopener">Zum Discord</a>' : a.status === 'abgelehnt' ? '<a class="btn btn-ghost" href="bewerbung.html">Neue Bewerbung</a>' : ''}`;
   } catch { $('out').innerHTML = '<div class="alert bad"><p>Keine Verbindung zum Server. Versuch es gleich nochmal.</p></div>'; }
 }
 $('statusForm').onsubmit = (e) => { e.preventDefault(); check(); };

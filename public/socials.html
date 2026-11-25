@@ -15,7 +15,7 @@
 <div class="rls-nav" role="navigation"><div class="rls-in">
   <a class="rls-brand" href="./"><img src="logo.png" alt="Real Life Southland III Logo"><span>Real Life Southland</span></a>
   <div class="rls-links"><a href="./">Start</a><a href="regelwerk.html">Regelwerk</a><a href="launcher.html">Launcher</a><a href="roadmap.html">Roadmap</a><a href="fraktion.html">Fraktion gründen</a><a href="bewerbung.html">Team-Bewerbung</a><a href="socials.html">Social Media</a></div>
-  <a class="rls-dc" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Discord</a>
+  <a class="rls-dc" href="https://discord.com/invite/unwptRNTbR" target="_blank" rel="noopener">Discord</a>
   <button class="rls-burger" type="button" aria-label="Menü öffnen" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
 </div></div>
 
@@ -32,7 +32,7 @@
   </section>
   <section class="soc-cta card">
     <div><h2>Selbst Creator?</h2><p class="muted">Du streamst oder machst Videos auf Southland? Meld dich per Ticket im Discord, dann nehmen wir dich hier auf.</p></div>
-    <a class="btn btn-pink" href="https://discord.gg/q9kBzXP9va" target="_blank" rel="noopener">Ticket im Discord</a>
+    <a class="btn btn-pink" href="https://discord.com/invite/unwptRNTbR" target="_blank" rel="noopener">Ticket im Discord</a>
   </section>
 </main>
 
@@ -93,7 +93,7 @@
       return '<a class="cr" href="' + safe(c.url) + '" target="_blank" rel="noopener" style="--c:' + S.colors[c.platform] + '"><span class="cr-av">' + ini + '</span><span><b>' + esc(c.name) + '</b><span class="pl">' + S.icon(c.platform) + S.names[c.platform] + '</span>' + (c.note ? '<small>' + esc(c.note) + '</small>' : '') + '</span></a>';
     }).join('');
   }
-  render({ platforms: [{ key: 'discord', url: 'https://discord.gg/q9kBzXP9va', handle: 'Real Life Southland', text: 'Community, Support & News' }], creators: [] });
+  render({ platforms: [{ key: 'discord', url: 'https://discord.com/invite/unwptRNTbR', handle: 'Real Life Southland', text: 'Community, Support & News' }], creators: [] });
   fetch('/api/socials').then(function (r) { return r.ok ? r.json() : null; }).then(function (d) { if (d && d.platforms && d.platforms.length) render(d); }).catch(function () {});
 })();
 </script>
