@@ -172,19 +172,6 @@ const PA = {
           { k: 'desc', l: 'Beschreibung / Konzept', t: 'textarea', full: 1 },
           { k: 'intern', l: 'Interne Notizen (nur Team)', t: 'textarea', full: 1 }
         ] },
-      { id: 'firmen', label: 'Firmengründung', icon: '🏢', view: 'concept', noun: 'Dokument', allowAdd: true,
-        // Liegt bei den Teamdokumenten (Kategorie „Firmengründung“) und wird hier angezeigt
-        area: 'docs', source: 'dokumente', saveTab: 'dokumente', filter: (it) => it.area === 'docs' && it.data.kat === 'Firmengründung',
-        seed: { title: 'Konzept Fraktions- & Firmengründung', data: { kat: 'Firmengründung', pin: true, body: "Stand: 25.11.2026 · Lenn\n\n## Das Hauptproblem beim Start\nDie Gründungsseite verlangt für das Gewerbe, dass der Charakter seit mindestens **14 Tagen** in der Stadt ist. Für einen Kredit braucht man mindestens **20 % Eigenkapital**. Am Release-Tag hat aber niemand 14 Tage Spielzeit und niemand hat Geld. Außerdem gibt es noch keine Spieler, die Rathaus, Bank oder Bauamt besetzen. Ohne Sonderregel könnte in den ersten zwei Wochen niemand gründen.\n\n## Lösung: drei Phasen\n\n## Phase 0: Vor dem Release (Gründungsphase, z. B. 3–4 Wochen)\n- Konzepte werden schon jetzt per Discord-Ticket eingereicht und freigegeben.\n- Die Zahl der Startplätze pro Art wird begrenzt, zum Beispiel 2 Bars, 1 Autohaus, 1 Taxi-Firma und 1 Werkstatt neben Benny's. Sonst gibt es zum Start zu viele Firmen für zu wenige Spieler.\n- Gangs laufen getrennt über ein eigenes Konzept bei der Projektleitung, nicht über Rathaus und Bank. Gebiete bekommen Gangs erst nach ein paar Wochen ausgespieltem RP, nicht schon an Tag 1.\n\n## Phase 1: Release bis ca. Woche 4 (Gründerwelle)\n- Für Gründer mit freigegebenem Konzept fällt die 14-Tage-Regel weg.\n- Startfirmen dürfen in dieser Zeit nur **pachten, nicht kaufen**. Pachten kostet nur eine Kaution von 2 Wochenpachten, dafür braucht man keinen großen Kredit.\n- Optional gibt es eine **Gründerförderung** der Stadt, die als Eigenkapital zählt.\n- Die Behörden sind NPCs mit ox_target-Menü am Rathaus, an der Bank und am Bauamt. Die Prüfungen laufen automatisch.\n- Die Abnahme bei der Eröffnung macht ein Teammitglied aus der Fraktionsverwaltung, als Termin im Spiel.\n\n## Phase 2: Normalbetrieb\n- Die 14-Tage-Regel, Kauf mit Kredit und alle Pflichten gelten wie auf der Website.\n- Später kann eine **Stadtverwaltung** als Spielerfraktion entstehen, mit Rathaus-Mitarbeitern, Bankberatern und Bauamt. Sie übernimmt die Termine. Ist niemand von ihr im Dienst, springt der NPC ein, damit niemand blockiert wird.\n\n**Staatliche Fraktionen:** LSPD, EMS und Benny's werden nicht über diesen Ablauf gegründet. Sie sind ab Tag 1 da, mit Leitungen, die das Team einsetzt.\n\n## Technische Umsetzung im Server\nDafür braucht es ein eigenes Script, zum Beispiel **rls-firmen**, das an die vorhandenen Scripts andockt.\n\n- **Konzept-Freigabe:** Freigabe im Web-Panel (rls_admin). Die Firma wird mit dem Status „genehmigt“ in der Datenbank angelegt. Nur dann kann man am Rathaus gründen.\n- **Gewerbe anmelden:** NPC am Rathaus prüft automatisch: Ausweis (rls-brieftasche), offene Haftbefehle (rls-mdt), offene Strafzettel, Charakteralter (rls-multichar). Danach wird der Gewerbeschein als Lizenz in esx_license eingetragen.\n- **Geschäftskonto + Kredit:** Firmenkonto in rls-banking (über esx_addonaccount). Kredit-Modul mit Laufzeit 4–16 Wochen, Rate montags, 1 % Bearbeitungsgebühr, automatisch über die cron-Resource.\n- **Gebäude kaufen/pachten:** Gebäudeliste im Panel. Schlüssel über ox_doorlock. Pacht wird wöchentlich per cron abgebucht, nach zwei verpassten Zahlungen automatische Kündigung.\n- **Lizenzen:** Neue Lizenztypen in esx_license: Ausschank, Bewachung, Personenbeförderung.\n- **Personal + Löhne:** Mitarbeiterverwaltung über esx_society. Löhne gehen wöchentlich vom Firmenkonto ab, die Reserve wird geprüft.\n- **Gewerbesteuer:** Jeden Sonntag per cron 10 % des Wochenumsatzes. Dafür müssen alle Verkäufe über eine Firmenkasse bzw. Rechnungen laufen, sonst gibt es keinen messbaren Umsatz.\n- **Aktivität:** Schalter „Geöffnet“ im Firmenmenü, der die Stunden zählt. Wer unter 10 Stunden pro Woche geöffnet bleibt, wird im Panel markiert. Nach zwei Wochen entscheidet das Team.\n- **Pfändung / Auflösung:** Mahnstufen automatisch. Die letzte Stufe (Gebäude an die Stadt, Fraktion auflösen) bestätigt das Team im Panel, nicht das Script allein.\n\n## Fraktionen von Anfang an miteinander verbinden\nDamit die Firmen nicht nebeneinander her laufen, brauchen sie Aufträge voneinander:\n\n- **Trucker → Bars und Läden:** Ware wird nur über Lieferungen aufgefüllt, nicht per NPC-Einkauf.\n- **Polizei → Benny's:** Abschleppaufträge und Verwahrstelle laufen über das MDT.\n- **Autohaus → Zulassungsstelle:** Ein verkauftes Auto muss angemeldet werden. Dafür muss rls-zulassung laufen.\n- **Taxi → Jobcenter:** Neue Spieler finden dort ihren ersten Job.\n- **Finanzamt → Polizei:** Wer Steuern nicht zahlt, bekommt eine Akte im MDT.",
-          checks: [{ t: 'Echte Beträge für Pacht, Gebäude und Fahrzeuge festlegen (Website zeigt noch „$ 0“)', d: false }, { t: 'Sonderregeln der Gründerwelle auf die Gründungsseite schreiben', d: false }, { t: 'Startplätze pro Firmenart festlegen', d: false }, { t: 'Script rls-firmen planen (To-do-Board)', d: false }] } },
-        fields: [
-          { k: 'title', l: 'Titel', t: 'text', req: 1, full: 1 },
-          { k: 'kat', l: 'Kategorie', t: 'hidden', def: 'Firmengründung' },
-          { k: 'owner', l: 'Verantwortlich', t: 'owner', me: 1 },
-          { k: 'pin', l: 'Oben anheften', t: 'bool' },
-          { k: 'body', l: 'Inhalt', t: 'md', full: 1 },
-          { k: 'checks', l: 'Offene Punkte', t: 'checklist', full: 1 }
-        ] },
       { id: 'bewerbungen', label: 'Fraktionsbewerbungen', icon: '📝', view: 'board', noun: 'Bewerbung', chips: ['typ', 'bewerber'],
         statuses: [st('offen', 'Neu', '#c9a8ff'), st('pruefung', 'In Prüfung', '#ffb84f'), st('gespraech', 'Gespräch', '#5cc8ff'), st('angenommen', 'Angenommen', '#3ddc97'), st('abgelehnt', 'Abgelehnt', '#ff5a6e')],
         action: { label: '→ Als Fraktion anlegen', to: 'fraktionen', map: (it) => ({ title: it.title, status: 'probe', data: { typ: it.data.typ, leitung: it.data.bewerber, leitung_dc: it.data.discord, mitglieder: it.data.mitglieder, desc: it.data.konzept } }), set: 'angenommen' },
@@ -383,7 +370,6 @@ const PICO = {
   '🎯': '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1"/>',
   '💶': '<rect x="3.5" y="6" width="17" height="13" rx="2"/><path d="M3.5 10h17M15.5 14.5h2"/>',
   '🤝': '<circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3.5 19c.6-3.2 2.8-5 5.5-5s4.9 1.8 5.5 5m1-4.6c2.3-.3 4 1.2 4.5 4.6"/>',
-  '🏢': '<path d="M4 20V6.5a1 1 0 0 1 .7-1l7-2.3a1 1 0 0 1 1.3 1V20M13 9h6a1 1 0 0 1 1 1v10M3 20h18M7.5 8.5h2m-2 3.5h2m-2 3.5h2M16 13h1m-1 3.5h1"/>',
   '💬': '<path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4A8 8 0 1 1 20 12z"/>'
 };
 const ico = (e) => (PICO[e] ? `<svg class="pi" viewBox="0 0 24 24" aria-hidden="true">${PICO[e]}</svg>` : `<span>${e}</span>`);
@@ -432,11 +418,7 @@ async function showPlan(nav, tabId, openId) {
   setNav(nav + '-' + tab.id);
   if (PU.tab !== tab.id) { PU.q = ''; PU.st = ''; }
   PU.tab = tab.id;
-  let d;
-  try {
-    d = await api('admin/plan?area=' + area);
-    for (const x of [...new Set(A.tabs.filter((t) => t.area && t.area !== area).map((t) => t.area))]) d.items = d.items.concat((await api('admin/plan?area=' + x)).items);
-  } catch (e) { return errBox(e); }
+  let d; try { d = await api('admin/plan?area=' + area); } catch (e) { return errBox(e); }
   PU.items = d.items; PU.team = d.team;
   const I = (t) => itemsOf(t);
   const count = (t) => (t.view === 'link' || t.view === 'calendar' ? '' : `<em>${(t.filter ? I(t.source).filter(t.filter) : I(t.id)).length}</em>`);
@@ -449,7 +431,7 @@ async function showPlan(nav, tabId, openId) {
   if (openId) { const it = PU.items.find((i) => i.id === openId); if (it) itemDialog(tabDef(it.tab), it); }
 }
 function toolbar(td, extra = '') {
-  const t = (td.source && tabDef(td.source)) || td;
+  const t = td.source ? tabDef(td.source) : td;
   return `<div class="ptool"><input type="search" id="pq" placeholder="Suchen…" value="${esc(PU.q)}">
     ${t.statuses && td.view !== 'board' ? `<select id="pst"><option value="">Alle Status</option>${t.statuses.map((s) => `<option value="${s.v}"${PU.st === s.v ? ' selected' : ''}>${esc(s.l)}</option>`).join('')}</select>` : ''}
     ${extra}${td.source && !td.allowAdd ? '' : `<button class="btn btn-pink sm" id="pnew">+ ${esc(td.noun || 'Neu')}</button>`}</div>`;
@@ -458,7 +440,7 @@ function bindToolbar(td) {
   let deb;
   const q = $('pq'); if (q) q.oninput = () => { clearTimeout(deb); deb = setTimeout(() => { PU.q = q.value.trim().toLowerCase(); renderTab(td, true); }, 200); };
   const s = $('pst'); if (s) s.onchange = () => { PU.st = s.value; renderTab(td); };
-  const n = $('pnew'); if (n) n.onclick = () => itemDialog(td.source && !td.allowAdd ? tabDef(td.source) : td);
+  const n = $('pnew'); if (n) n.onclick = () => itemDialog(td.source ? tabDef(td.source) : td);
 }
 function filtered(td) {
   let rows = td.source ? itemsOf(td.source) : itemsOf(td.id);
@@ -470,11 +452,7 @@ function filtered(td) {
 function renderTab(td, keepFocus) {
   const el = $('pview'); if (!el) return;
   const pos = keepFocus && $('pq') ? $('pq').selectionStart : null;
-  if (td.seed && !(td.source ? itemsOf(td.source).filter(td.filter || (() => true)) : itemsOf(td.id)).length && !(PU.seeded || {})[td.id]) {
-    (PU.seeded = PU.seeded || {})[td.id] = true;
-    api('admin/plan', { method: 'POST', body: { area: td.area || PU.area, tab: td.saveTab || td.id, ...td.seed } }).then(() => showPlan(PA[PU.area].nav, td.id)).catch(() => {});
-  }
-  const V = { concept: viewConcept, board: viewBoard, table: viewTable, cards: viewCards, calendar: viewCalendar, docs: viewDocs, stats: viewStats, finance: viewFinance };
+  const V = { board: viewBoard, table: viewTable, cards: viewCards, calendar: viewCalendar, docs: viewDocs, stats: viewStats, finance: viewFinance };
   V[td.view](td, el);
   if (pos !== null && $('pq')) { $('pq').focus(); $('pq').setSelectionRange(pos, pos); }
 }
@@ -612,83 +590,6 @@ function viewCalendar(td, el) {
   el.querySelectorAll('[data-day]').forEach((d) => (d.title = 'Doppelklick: neuer Eintrag an diesem Tag'));
 }
 
-
-// ---------- Ansicht: Konzept (Firmengründung) – schön aufbereitet, Inhalt bleibt normales Markdown
-// So wird der Text gelesen:  „## Überschrift“ = neuer Abschnitt · „## Phase 1: Name (Info)“ = Phasen-Karte
-// „- **Name:** Text“ = Schritt-Karte · „- **A → B:** Text“ = Verbindungs-Karte · alles andere = normaler Text
-const fcInl = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\*([^*]+)\*/g, '<i>$1</i>');
-const FC_PHASE = ['#8b6cff', '#ff4fb3', '#4fe0a0', '#ffc04f', '#7aa8ff'];
-function fcSections(body) {
-  const out = [{ title: '', lines: [] }];
-  String(body || '').split('\n').forEach((l) => { const m = l.match(/^#{1,3}\s+(.*)/); if (m) out.push({ title: m[1].trim(), lines: [] }); else out[out.length - 1].lines.push(l); });
-  return out.map((sec) => {
-    const items = [], paras = [];
-    sec.lines.forEach((l) => { const m = l.match(/^\s*[-*]\s+(.*)/); if (m) items.push(m[1]); else if (l.trim()) paras.push(l.trim()); });
-    return { ...sec, items, paras };
-  });
-}
-function fcCards(items) {
-  const kv = items.map((t) => t.match(/^\*\*(.+?):?\*\*:?\s*(.*)$/)).filter(Boolean);
-  if (kv.length < 2 || kv.length < items.length) return null;
-  if (kv.some((m) => /→|->/.test(m[1]))) {
-    return `<div class="fc-flow">${kv.map((m) => { const [a, b] = m[1].split(/\s*(?:→|->)\s*/);
-      return `<div class="fc-link"><div class="fc-ends"><span>${fcInl(a)}</span><i>→</i><span>${fcInl(b || '')}</span></div><p>${fcInl(m[2])}</p></div>`; }).join('')}</div>`;
-  }
-  return `<div class="fc-steps">${kv.map((m, i) => `<div class="fc-step"><em>${i + 1}</em><b>${fcInl(m[1].replace(/:$/, ''))}</b><p>${fcInl(m[2])}</p></div>`).join('')}</div>`;
-}
-function viewConcept(td, el) {
-  const rows = filtered(td).sort((a, b) => (+!!b.data.pin - +!!a.data.pin) || a.title.localeCompare(b.title, 'de'));
-  const sel = (PU.doc[td.id] && rows.find((r) => r.id === PU.doc[td.id])) || rows[0];
-  el.innerHTML = `<div class="ptool fc-tool">${rows.length > 1 ? `<div class="fc-docs">${rows.map((r) => `<button class="${sel && r.id === sel.id ? 'on' : ''}" data-doc="${r.id}">${r.data.pin ? '📌 ' : ''}${esc(r.title)}</button>`).join('')}</div>` : '<span></span>'}
-    <button class="btn btn-pink sm" id="pnew">+ ${esc(td.noun)}</button></div><div id="fcBody"></div>`;
-  bindToolbar(td);
-  el.querySelectorAll('[data-doc]').forEach((b) => (b.onclick = () => { PU.doc[td.id] = +b.dataset.doc; renderTab(td); }));
-  const box = $('fcBody');
-  if (!sel) { box.innerHTML = '<div class="empty">Wird angelegt …</div>'; return; }
-  const secs = fcSections(sel.data.body), lead = secs.shift();
-  const cl = sel.data.checks || [], done = cl.filter((c) => c.d).length;
-  let html = `<section class="fc-hero">
-      <div class="fc-badge">${ico(td.icon)}</div>
-      <div class="fc-hero-t"><span class="fc-kicker">Konzept · Fraktionsverwaltung</span><h2>${esc(sel.title)}</h2>
-        <p>${[lead.paras.join(' '), sel.owner_name && 'Verantwortlich: ' + sel.owner_name, 'zuletzt geändert ' + ago(sel.updated_at)].filter(Boolean).map(fcInl).join(' · ')}</p></div>
-      <button class="btn btn-ghost sm" id="fcEdit">Bearbeiten</button>
-    </section>`;
-  if (cl.length) html += `<section class="card fc-todo"><header><h3>Offene Punkte</h3><span>${done} von ${cl.length} erledigt</span></header>
-      <div class="pbar"><i style="width:${cl.length ? done / cl.length * 100 : 0}%;background:linear-gradient(90deg,var(--violet),var(--pink))"></i></div>
-      <div class="fc-checks">${cl.map((c, i) => `<label class="fc-check${c.d ? ' done' : ''}"><input type="checkbox" data-ck="${i}" ${c.d ? 'checked' : ''}><span>${esc(c.t)}</span></label>`).join('')}</div></section>`;
-  // Abschnitte: Phasen werden zu einer Zeitleiste zusammengefasst
-  let phases = [], notes = [];
-  const flushPhases = () => {
-    if (!phases.length) return;
-    html += `<div class="fc-phases" style="--n:${phases.length}">${phases.map((ph, i) => { const m = ph.title.match(/^Phase\s*(\d+)\s*[:\-–]?\s*([^(]*)(?:\((.*)\))?/i) || [];
-      return `<article class="fc-phase" style="--c:${FC_PHASE[i % FC_PHASE.length]}"><div class="fc-ph-h"><span class="fc-ph-n">${esc(m[1] ?? i)}</span><div><small>Phase ${esc(m[1] ?? i)}</small><h4>${fcInl((m[2] || ph.title).trim())}</h4>${m[3] ? `<em>${fcInl(m[3])}</em>` : ''}</div></div>
-        <ul>${ph.items.map((t) => `<li>${fcInl(t)}</li>`).join('')}</ul>${ph.paras.filter((p) => !/^\*\*/.test(p)).map((p) => `<p>${fcInl(p)}</p>`).join('')}</article>`; }).join('')}</div>`;
-    html += notes.map((n) => `<div class="fc-note">${fcInl(n)}</div>`).join('');
-    phases = []; notes = [];
-  };
-  secs.forEach((sec) => {
-    if (/^Phase\s*\d+/i.test(sec.title)) { phases.push(sec); notes.push(...sec.paras.filter((p) => /^\*\*/.test(p))); return; }
-    flushPhases();
-    const empty = !sec.items.length && !sec.paras.length;
-    if (empty) { html += `<h3 class="fc-sec">${fcInl(sec.title)}</h3>`; return; }
-    const cards = sec.items.length ? fcCards(sec.items) : null;
-    html += `<section class="card fc-block"><h3>${fcInl(sec.title)}</h3>${sec.paras.map((p) => `<p class="fc-lead">${fcInl(p)}</p>`).join('')}
-      ${cards || (sec.items.length ? `<ul class="fc-list">${sec.items.map((t) => `<li>${fcInl(t)}</li>`).join('')}</ul>` : '')}</section>`;
-  });
-  flushPhases();
-  html += `<p class="fc-hint">Tipp zum Bearbeiten: <code>## Überschrift</code> = neuer Abschnitt · <code>## Phase 3: Name (Info)</code> = neue Phasen-Karte · <code>- **Name:** Text</code> = Schritt-Karte · <code>- **A → B:** Text</code> = Verbindung</p>`;
-  box.innerHTML = html;
-  $('fcEdit').onclick = () => itemDialog(td, sel);
-  box.querySelectorAll('[data-ck]').forEach((cb) => (cb.onchange = async () => {
-    sel.data.checks[+cb.dataset.ck].d = cb.checked;
-    cb.parentElement.classList.toggle('done', cb.checked);
-    const d2 = sel.data.checks.filter((c) => c.d).length;
-    box.querySelector('.fc-todo header span').textContent = `${d2} von ${sel.data.checks.length} erledigt`;
-    box.querySelector('.fc-todo .pbar i').style.width = (d2 / sel.data.checks.length * 100) + '%';
-    try { await api('admin/plan/' + sel.id, { method: 'PUT', body: { data: sel.data, quiet: true } }); if (d2 === sel.data.checks.length) confetti(); } catch (err) { toast(err.message, 'bad'); }
-  }));
-}
-
 // ---------- Ansicht: Dokumente (Liste links, Lesen rechts)
 function viewDocs(td, el) {
   let rows = filtered(td);
@@ -786,7 +687,6 @@ function fieldHtml(td, f, it, pre) {
       const list = Array.isArray(v) && v.length ? v : !it && f.def ? f.def.map((t) => ({ t, d: false })) : [];
       return `<div class="${cls}">${L}<div class="pcl" data-cl="${f.k}">${list.map((c) => clRow(c)).join('')}</div><button type="button" class="mini" data-cladd="${f.k}">+ Punkt</button></div>`;
     }
-    case 'hidden': return `<input type="hidden" ${n} value="${esc(v || f.def || '')}">`;
     case 'md': return `<label class="${cls}">${L}<textarea ${n} class="pmd" placeholder="Markdown geht: ## Überschrift, **fett**, - Liste, [Link](https://…)">${esc(v || (!it && f.def) || '')}</textarea></label>`;
     case 'textarea': return `<label class="${cls}">${L}${f.copy && v ? `<button type="button" class="mini pcopy" data-copyf="${f.k}">📋 Kopieren</button>` : ''}<textarea ${n} rows="${f.rows || 3}" placeholder="${esc(f.ph || '')}">${esc(v)}</textarea></label>`;
     default: return `<label class="${cls}">${L}<input ${n} value="${esc(v)}" maxlength="${f.k === 'title' ? 160 : 500}" placeholder="${esc(f.ph || '')}"${f.req ? ' required' : ''}></label>`;
@@ -811,7 +711,7 @@ function itemDialog(td, it, pre = {}) {
     const body = collect(td, form, it);
     if (!body.title) throw new Error('Bitte gib einen Titel ein.');
     if (edit) await api('admin/plan/' + it.id, { method: 'PUT', body });
-    else await api('admin/plan', { method: 'POST', body: { area: td.area || PU.area, tab: td.saveTab || td.id, ...body } });
+    else await api('admin/plan', { method: 'POST', body: { area: PU.area, tab: td.id, ...body } });
     if (edit && body.status !== it.status && ['live', 'fertig', 'angenommen', 'erreicht', 'umgesetzt'].includes(body.status)) confetti();
     toast(edit ? 'Gespeichert.' : `${td.noun} angelegt.`);
   }, async () => { await api('admin/plan/' + it.id, { method: 'DELETE' }); toast('Gelöscht.'); },
@@ -872,14 +772,23 @@ async function openPlanItem(id) {
   } catch (e) { errBox(e); }
 }
 
-// ---------- Seitenleiste: jeder Bereich ist eine eigene Kategorie (wie „Dev“) mit seinen Unterpunkten
+// ---------- Seitenleiste: jede Planung ist eine eigene Kategorie mit Unterpunkten (auf- und zuklappbar)
 const NAV_EXTRA = { social: [{ href: '#social', nav: 'social', icon: '🔗', label: 'Social-Links (Website)' }] };
 function buildPlanNav() {
   const box = document.getElementById('planNav'); if (!box) return;
+  let open = {}; try { open = JSON.parse(localStorage.getItem('rls_navopen') || '{}'); } catch {}
   box.outerHTML = Object.entries(PA).map(([k, A]) => {
     const links = A.tabs.filter((t) => t.view !== 'link').map((t) => ({ href: `#${A.nav}-${t.id}`, nav: `${A.nav}-${t.id}`, icon: t.icon, label: t.label })).concat(NAV_EXTRA[k] || []);
-    return `<p>${esc(A.title)}</p>` + links.map((l) => `<a href="${l.href}" data-nav="${l.nav}" class="sb-plan">${ico(l.icon)}${esc(l.label)}</a>`).join('');
+    return `<div class="sb-cat${open[A.nav] ? ' open' : ''}" data-cat="${A.nav}" data-navs="${links.map((l) => l.nav).join(' ')}">
+      <button type="button" class="sb-cat-h">${ico(A.icon)}${esc(A.title)}<i>›</i></button>
+      <div class="sb-cat-b">${links.map((l) => `<a href="${l.href}" data-nav="${l.nav}">${ico(l.icon)}${esc(l.label)}</a>`).join('')}</div></div>`;
   }).join('');
+  document.querySelectorAll('.sb-cat-h').forEach((h) => (h.onclick = () => {
+    const c = h.parentElement; c.classList.toggle('open');
+    try { const o = JSON.parse(localStorage.getItem('rls_navopen') || '{}'); o[c.dataset.cat] = c.classList.contains('open'); localStorage.setItem('rls_navopen', JSON.stringify(o)); } catch {}
+  }));
 }
-function planNavSync() {} // Markierung macht setNav() selbst
+function planNavSync(view) {
+  document.querySelectorAll('.sb-cat').forEach((c) => { const has = c.dataset.navs.split(' ').includes(view); c.classList.toggle('has-on', has); if (has) c.classList.add('open'); });
+}
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', buildPlanNav); else setTimeout(buildPlanNav);
